@@ -1,0 +1,4 @@
+# my-proxmox:
+#   url: https://proxmox.example.com
+#   token: user@pam!token-name
+#   secret: api-token-secret

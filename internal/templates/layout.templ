@@ -1,0 +1,21 @@
+package templates
+
+templ Layout(data PageData) {
+	<!DOCTYPE html>
+	<html lang={ data.Language } class={ data.Theme + " theme-" + data.Color }>
+		@Head(data)
+		<body
+			class="min-h-screen bg-theme-50 dark:bg-theme-900 text-theme-900 dark:text-theme-100 transition-colors duration-200"
+			style={ backgroundStyle(data.Settings, data.Hash) }
+		>
+			<div class="container mx-auto px-4 max-w-screen-2xl">
+				@Header(data)
+				<main class="pb-8">
+					{ children... }
+				</main>
+				@Footer(data)
+			</div>
+			@Scripts(data)
+		</body>
+	</html>
+}

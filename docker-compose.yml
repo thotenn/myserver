@@ -1,0 +1,77 @@
+# docker-compose.yml — Coolify Private App
+#
+# Deploy flow:
+#   1. Push this project as its own private GitHub repo (standalone, no subtree).
+#   2. In Coolify create "Private Application" → "Docker Compose" pointing at
+#      the repo via GitHub App.
+#   3. Coolify reads this compose, builds the image from the repo root
+#      (Dockerfile is next to this file), and deploys.
+#   4. Coolify will:
+#        - Auto-assign a random suffix to the container name
+#        - Prefix the volumes with the app ID hash
+#        - Inject its own network
+#        - Expose the host port defined in `ports:`
+#   5. Configure `HOMEPAGE_ALLOWED_HOSTS` and `HOMEPAGE_SCRIPTS_ENABLED` in
+#      the Coolify environment variable UI (NOT here).
+#   6. Point the Cloudflare Tunnel subdomain to `127.0.0.1:8085` on the host.
+#
+# Security notes:
+#   * `HOMEPAGE_SCRIPTS_ENABLED` is NOT set here — opt in explicitly via
+#     Coolify env vars. When enabled, the docker.sock mount becomes a
+#     container-escape vector if combined with an RCE in the script whitelist.
+#   * `HOMEPAGE_ALLOWED_HOSTS` is NOT wildcarded here. Set it in Coolify env
+#     to the public hostname (e.g. `htop.thotenn.com,htop.thotenn.com:443`).
+#   * The docker socket mount requires enabling "Allow Docker socket" in
+#     the Coolify service settings if it is restricted at the daemon level.
+#
+services:
+  myserver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # External port 8085 coexists with the original Homepage (Node) running
+    # on 8084 during migration. When the original is retired, switch to 8084
+    # and repoint the Cloudflare tunnel.
+    ports:
+      - "8084:3000"
+    environment:
+      - HOMEPAGE_CONFIG_DIR=/app/config
+      - TZ=America/Asuncion
+      # Override these via Coolify env UI:
+      #   HOMEPAGE_ALLOWED_HOSTS=htop.thotenn.com,htop.thotenn.com:443,localhost:3000
+      #   HOMEPAGE_SCRIPTS_ENABLED=true
+      #   HOMEPAGE_ALLOW_PRIVATE_HOSTS=true   # default; Coolify network is RFC1918
+    extra_hosts:
+      # So the dashboard proxy can reach host services via 10.0.17.1
+      # (Docker gateway on Linux) or host.docker.internal.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Config YAML — bind mount from the host. The user edits files
+      # directly in /opt/myserver/config/ with their favorite editor;
+      # fsnotify inside the container detects changes and hot-reloads
+      # without restart.
+      - /opt/myserver/config:/app/config
+      # Audit log + runtime data
+      - myserver-data:/app/data
+      # Docker socket — read/write so script wrappers can call
+      # `docker restart`. If you don't use the scripts feature, mount it
+      # `:ro` for defense in depth.
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.0"
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  myserver-data:
+    driver: local

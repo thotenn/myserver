@@ -1,0 +1,50 @@
+package templates
+
+templ Head(data PageData) {
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		if data.Settings.Favicon != "" {
+			<link rel="icon" href={ data.Settings.Favicon }/>
+		}
+		<title>{ data.Settings.Title }</title>
+		<!-- DNS prefetch and preconnect for external CDNs -->
+		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net"/>
+		<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin/>
+		<link rel="dns-prefetch" href="https://cdn.simpleicons.org"/>
+		<link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin/>
+		<link rel="dns-prefetch" href="https://unpkg.com"/>
+		<link rel="preconnect" href="https://unpkg.com" crossorigin/>
+		<!-- Preload critical static assets -->
+		<link rel="preload" as="style" href={ "/static/css/main.css?v=" + data.Hash }/>
+		<link rel="preload" as="script" href={ "/static/js/app.js?v=" + data.Hash }/>
+		<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.Hash }/>
+		<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.Hash }/>
+		<link rel="stylesheet" href="/api/config/custom.css"/>
+		<!-- Early theme init to avoid FOUC -->
+		@themeInit()
+		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		<script src="https://unpkg.com/htmx.org@2.0.4/dist/ext/json-enc.js"></script>
+		<!-- Background image (if any) is applied via a dynamic `style=""`
+		     attribute on <body> in layout.templ. We cannot interpolate { ... }
+		     inside <style> blocks because Templ emits them literally. -->
+		<meta name="config-hash" content={ data.Hash }/>
+	</head>
+}
+
+// themeInit is a small inline script placed at the top of <head> to apply
+// the persisted theme/color from localStorage before any CSS is parsed,
+// avoiding the flash-of-unstyled-content when JS runs late.
+templ themeInit() {
+	<script>
+		(function() {
+			try {
+var t = localStorage.getItem('myserver-theme');
+			if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+			document.documentElement.classList.add(t);
+			var c = localStorage.getItem('myserver-color') || 'slate';
+				document.documentElement.classList.add('theme-' + c);
+			} catch (e) {}
+		})();
+	</script>
+}

@@ -1,0 +1,104 @@
+# docker.yaml — Docker Server Definitions
+#
+# Defines Docker/Podman servers for container stats, status, and discovery.
+# Referenced by service cards via 'server: <name>'.
+#
+# Hot-reload: YES.
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Local Docker socket (most common)
+# ═══════════════════════════════════════════════════════════════════════════════
+local:
+  socket: /var/run/docker.sock
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: Local Docker socket with Swarm discovery
+# ═══════════════════════════════════════════════════════════════════════════════
+local:
+  socket: /var/run/docker.sock
+  swarm: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: Remote Docker via TCP
+# ═══════════════════════════════════════════════════════════════════════════════
+remote:
+  host: 10.0.0.5
+  port: 2375
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Remote Docker via TCP with TLS
+# ═══════════════════════════════════════════════════════════════════════════════
+remote-tls:
+  host: 10.0.0.5
+  port: 2376
+  tls: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Podman rootless socket
+# ═══════════════════════════════════════════════════════════════════════════════
+podman:
+  socket: /run/user/1000/podman/podman.sock
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Podman system socket
+# ═══════════════════════════════════════════════════════════════════════════════
+podman-system:
+  socket: /run/podman/podman.sock
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Multiple servers
+# ═══════════════════════════════════════════════════════════════════════════════
+local:
+  socket: /var/run/docker.sock
+  swarm: true
+
+remote:
+  host: 10.0.0.5
+  port: 2375
+
+podman:
+  socket: /run/user/1000/podman/podman.sock
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 8: Docker socket with custom name
+# ═══════════════════════════════════════════════════════════════════════════════
+# The key ('homelab') is what you reference in services.yaml:
+#   server: homelab
+homelab:
+  socket: /var/run/docker.sock
+  swarm: false
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 9: Coolify host (Docker socket)
+# ═══════════════════════════════════════════════════════════════════════════════
+local:
+  socket: /var/run/docker.sock
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 10: Full config with all options
+# ═══════════════════════════════════════════════════════════════════════════════
+local:
+  socket: /var/run/docker.sock
+  swarm: true
+
+remote-prod:
+  host: 10.0.0.10
+  port: 2376
+  tls: true
+
+remote-staging:
+  host: 10.0.0.11
+  port: 2375
+
+podman-dev:
+  socket: /run/user/1000/podman/podman.sock

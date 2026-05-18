@@ -1,0 +1,266 @@
+# scripts.yaml — Script Definitions
+#
+# Scripts render as service cards with an "Execute" button on the dashboard.
+# The actual .sh files live in config/scripts/ (relative to HOMEPAGE_CONFIG_DIR).
+#
+# HOT-RELOAD: YES — save and the dashboard updates instantly.
+# SECURITY: Scripts are opt-in (HOMEPAGE_SCRIPTS_ENABLED=true).
+#
+# IMPORTANT:
+#   - command must be relative (no leading /)
+#   - file must end in .sh
+#   - file must be inside one of the scriptDirs
+#   - file must not be world-writable (mode & 0o002 == 0)
+#   - requireConfirm is enforced server-side (HTTP 428 without X-Homepage-Confirm: yes)
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Minimal script
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  hello:
+    command: hello.sh
+    description: "Say hello"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: Script with confirmation dialog
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  backup:
+    command: backup.sh
+    description: "Run system backup"
+    timeout: 300
+    requireConfirm: true
+    icon: mdi:backup-restore
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: Script with custom env vars
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  deploy:
+    command: deploy.sh
+    description: "Deploy latest release"
+    timeout: 600
+    requireConfirm: true
+    icon: mdi:rocket-launch
+    env:
+      DEPLOY_ENV: production
+      DEPLOY_BRANCH: main
+      DOCKER_HOST: unix:///var/run/docker.sock
+    args:
+      - "--force"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Script with logging enabled
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  cleanup:
+    command: cleanup.sh
+    description: "Clean old Docker images"
+    timeout: 120
+    icon: mdi:broom
+    logOutput: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Script that allows concurrent runs
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  check-health:
+    command: health-check.sh
+    description: "Run health checks"
+    timeout: 60
+    icon: mdi:heart-pulse
+    allowConcurrent: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Multiple scripts
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  backup:
+    command: backup.sh
+    description: "Run nightly backup"
+    timeout: 300
+    requireConfirm: true
+    icon: mdi:backup-restore
+
+  update:
+    command: update.sh
+    description: "Update all containers"
+    timeout: 600
+    requireConfirm: true
+    icon: mdi:update
+
+  restart-nginx:
+    command: restart-nginx.sh
+    description: "Restart Nginx container"
+    timeout: 30
+    requireConfirm: true
+    icon: mdi:restart
+    env:
+      CONTAINER_NAME: nginx
+
+  cleanup:
+    command: cleanup.sh
+    description: "Clean Docker system"
+    timeout: 120
+    icon: mdi:broom
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Podman script (needs real HOME)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Podman rootless reads ~/.config/containers/storage.conf.
+# The executor sets HOME=/tmp by default, which breaks podman.
+# Override HOME in env.
+scripts:
+  podman-list:
+    command: podman-list.sh
+    description: "List Podman containers"
+    timeout: 30
+    icon: mdi:docker
+    env:
+      HOME: /home/tho
+      XDG_RUNTIME_DIR: /run/user/1000
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 8: Script with long timeout
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  full-backup:
+    command: full-backup.sh
+    description: "Full system backup to S3"
+    timeout: 3600           # 1 hour
+    requireConfirm: true
+    icon: mdi:cloud-upload
+    env:
+      AWS_REGION: us-east-1
+      S3_BUCKET: my-backups
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 9: Quick script (no confirmation)
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  status:
+    command: status.sh
+    description: "Show system status"
+    timeout: 10
+    icon: mdi:information-outline
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 10: Script card without service entry (standalone)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Some scripts don't need a service card — they can be triggered via API only:
+#   POST /api/scripts/status
+# But most users want a button on the dashboard. Add a service entry.
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 11: Database backup script
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  db-backup:
+    command: db-backup.sh
+    description: "Backup PostgreSQL database"
+    timeout: 600
+    requireConfirm: true
+    icon: mdi:database-export
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGDATABASE: myapp
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 12: SSL certificate renewal
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  renew-certs:
+    command: renew-certs.sh
+    description: "Renew Let's Encrypt certificates"
+    timeout: 300
+    requireConfirm: true
+    icon: mdi:certificate
+    env:
+      CERTBOT_EMAIL: admin@example.com
+      DOMAINS: "example.com,www.example.com"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 13: Service restart script (generic)
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  restart-service:
+    command: restart-service.sh
+    description: "Restart a Docker service"
+    timeout: 60
+    requireConfirm: true
+    icon: mdi:restart
+    args:
+      - "{{service_name}}"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 14: Log rotation script
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  rotate-logs:
+    command: rotate-logs.sh
+    description: "Rotate application logs"
+    timeout: 120
+    icon: mdi:file-replace
+    env:
+      LOG_DIR: /var/log/myapp
+      RETENTION_DAYS: 30
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 15: Full admin panel
+# ═══════════════════════════════════════════════════════════════════════════════
+scripts:
+  backup:
+    command: backup.sh
+    description: "Run nightly backup"
+    timeout: 300
+    requireConfirm: true
+    icon: mdi:backup-restore
+
+  update:
+    command: update.sh
+    description: "Update all containers"
+    timeout: 600
+    requireConfirm: true
+    icon: mdi:update
+
+  cleanup:
+    command: cleanup.sh
+    description: "Clean Docker system"
+    timeout: 120
+    icon: mdi:broom
+
+  status:
+    command: status.sh
+    description: "Show system status"
+    timeout: 10
+    icon: mdi:information-outline
+
+  restart-nginx:
+    command: restart-nginx.sh
+    description: "Restart Nginx"
+    timeout: 30
+    requireConfirm: true
+    icon: mdi:restart
+
+  db-backup:
+    command: db-backup.sh
+    description: "Backup database"
+    timeout: 600
+    requireConfirm: true
+    icon: mdi:database-export

@@ -1,0 +1,29 @@
+services:
+  myserver:
+    build: .
+    container_name: myserver-dev
+    # Map container uid 1000 (myserver) to the host user that started Podman.
+    # Without this, rootless Podman chowns bind-mounted files to a high
+    # subuid that the host user can't write to. No-op under Docker Engine.
+    userns_mode: keep-id
+    ports:
+      - "8085:3000"
+    volumes:
+      # Full config (YAML + scripts + data) from the host.
+      # Hot-reload works in real time without restart.
+      # `:Z` re-labels the bind mount with a private SELinux context — required
+      # on Fedora / RHEL / CentOS hosts with SELinux enforcing. It is a no-op
+      # on hosts without SELinux. Drop the `:Z` only if SELinux is disabled
+      # and you need the directory to be shared with other containers.
+      - ./config:/app/config:Z
+      # Docker / Podman socket — uncomment whichever exists on your host.
+      # Required for Docker stats widgets and any script that calls
+      # `docker ps` / `docker restart`. Leave commented to start the
+      # dashboard without container-stats integration.
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - /run/user/1000/podman/podman.sock:/var/run/docker.sock
+    environment:
+      - HOMEPAGE_ALLOWED_HOSTS=localhost:8085,localhost:3000,127.0.0.1:8085,127.0.0.1:3000
+      - HOMEPAGE_SCRIPTS_ENABLED=true
+      - DEBUG=true
+      - TZ=UTC

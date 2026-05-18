@@ -1,0 +1,7 @@
+# scripts:
+#   backup:
+#     command: backup.sh
+#     description: "Run system backup"
+#     timeout: 300
+#     requireConfirm: true
+#     icon: mdi:backup

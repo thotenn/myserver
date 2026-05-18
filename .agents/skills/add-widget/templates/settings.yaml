@@ -1,0 +1,278 @@
+# settings.yaml — Global Dashboard Settings
+#
+# Hot-reload: YES — save and the dashboard updates instantly.
+#
+# Caveat — `quicklaunch:` is LEGACY. The search/QuickLaunch UI is now
+# unified inside the `search:` info widget (see widgets.yaml). The
+# block below still triggers the bar when no `search:` widget exists,
+# but its sub-fields (searchDescriptions, hideInternetSearch,
+# hideVisitURL) are no-ops today. Prefer adding `search:` to
+# widgets.yaml for new configs.
+#
+# Caveat — `layout.<group>.tab` is parsed but the dashboard currently
+# renders every group as a flat <h2> section. Set `tab:` for forward
+# compatibility; do not expect a tabbed UI yet.
+#
+# Caveat — `scripts.scriptDirs`, `scripts.maxTimeout`,
+# `scripts.defaultTimeout`, and `scripts.maxConcurrent` are read ONCE at
+# process start. Changing them requires a container restart. (Script
+# entries in scripts.yaml are still hot-reloaded.)
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Minimal settings
+# ═══════════════════════════════════════════════════════════════════════════════
+title: My Homepage
+theme: dark
+color: slate
+language: en
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: Full settings
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Homelab Dashboard
+favicon: https://example.com/favicon.png
+theme: dark
+color: blue
+language: en
+columns: 3
+target: _blank
+headerStyle: underlined
+cardBlur: true
+# backgroundImage accepts either a relative path under config/ or a full
+# URL. Local files are served via /api/config/<path>; only image
+# extensions (png/jpg/jpeg/webp/gif/svg/avif/ico/bmp) are allowed.
+backgroundImage: wallpaper.jpg
+# backgroundImage: wallpapers/mountains.webp
+# backgroundImage: https://images.example.com/bg.png
+
+layout:
+  Media:
+    columns: 3
+  Infrastructure:
+    columns: 2
+    tab: Infra
+  Tools:
+    columns: 2
+    tab: Tools
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  hideVisitURL: false
+
+scripts:
+  enabled: true
+  maxTimeout: 300
+  defaultTimeout: 60
+  maxConcurrent: 5
+  scriptDirs:
+    - scripts
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: Light theme
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: light
+color: slate
+language: en
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Tabbed layout
+# ═══════════════════════════════════════════════════════════════════════════════
+# When any group has a 'tab' field, the dashboard switches to tab mode.
+title: Homelab
+theme: dark
+color: slate
+language: en
+
+layout:
+  Infrastructure:
+    columns: 2
+    tab: Infra
+  Media:
+    columns: 3
+    tab: Media
+  Monitoring:
+    columns: 2
+    tab: Monitoring
+  Tools:
+    columns: 2
+    tab: Tools
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Spanish language
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Panel de Control
+theme: dark
+color: emerald
+language: es
+headerStyle: boxed
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Custom columns per group + global fallback
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: zinc
+language: en
+columns: 3          # global fallback
+
+layout:
+  Infrastructure:
+    columns: 2      # override for this group
+  Media:
+    columns: 4      # 4 columns for media
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Minimal with card blur
+# ═══════════════════════════════════════════════════════════════════════════════
+title: My Server
+theme: dark
+color: gray
+language: en
+cardBlur: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 8: Clean header style
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: neutral
+language: en
+headerStyle: clean
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 9: Background image
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: slate
+language: en
+backgroundImage: https://wallpaper.example.com/dark-abstract.jpg
+cardBlur: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 10: Auto-fit columns (responsive)
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: slate
+language: en
+columns: auto
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 11: Quick launch settings
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: slate
+language: en
+
+quicklaunch:
+  searchDescriptions: true   # search service descriptions
+  hideInternetSearch: false  # show "Search Google for..."
+  hideVisitURL: false        # show "Visit URL..."
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 12: Scripts disabled (no script cards)
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: slate
+language: en
+
+scripts:
+  enabled: false
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 13: Scripts with custom dirs
+# ═══════════════════════════════════════════════════════════════════════════════
+title: Dashboard
+theme: dark
+color: slate
+language: en
+
+scripts:
+  enabled: true
+  maxTimeout: 600
+  defaultTimeout: 120
+  maxConcurrent: 3
+  scriptDirs:
+    - scripts
+    - admin-scripts
+    - maintenance
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 14: Color themes showcase
+# ═══════════════════════════════════════════════════════════════════════════════
+# Available colors:
+#   slate | gray | zinc | neutral | stone
+#   red | orange | amber | yellow | lime | green | emerald | teal | cyan | sky | blue | indigo | violet | purple | fuchsia | pink | rose
+
+# Blue theme
+title: Dashboard
+theme: dark
+color: blue
+language: en
+
+# Emerald theme
+title: Dashboard
+theme: dark
+color: emerald
+language: en
+
+# Rose theme
+title: Dashboard
+theme: dark
+color: rose
+language: en
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 15: Complete production config
+# ═══════════════════════════════════════════════════════════════════════════════
+title: thotenn.com
+theme: dark
+color: slate
+language: en
+columns: 3
+headerStyle: underlined
+cardBlur: true
+
+layout:
+  Infrastructure:
+    columns: 2
+    tab: Infra
+  Media:
+    columns: 3
+    tab: Media
+  Tools:
+    columns: 2
+    tab: Tools
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  hideVisitURL: false
+
+scripts:
+  enabled: true
+  maxTimeout: 300
+  defaultTimeout: 60
+  maxConcurrent: 5
+  scriptDirs:
+    - scripts

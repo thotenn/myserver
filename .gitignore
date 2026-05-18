@@ -1,0 +1,36 @@
+node_modules/
+package.json
+package-lock.json
+/myserver
+tmp/
+*.log
+.air.log
+build-errors.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+/vendor/
+/go.work
+/go.work.sum
+
+# Test artifacts
+cover.out
+*.test
+
+# Local env files
+.env
+.env.local
+
+# Local config (dev/test configs, never commit)
+/config/
+

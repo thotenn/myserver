@@ -1,0 +1,21 @@
+package templates
+
+templ Index(data PageData) {
+	@Layout(data) {
+		<!-- Bookmarks section -->
+		if len(data.Bookmarks) > 0 {
+			<div class="mb-6">
+				for _, group := range data.Bookmarks {
+					@BookmarkGroup(group)
+				}
+			</div>
+		}
+		<!-- Tabs + Services -->
+		<div id="main-content">
+			<!-- Services by groups -->
+			for _, group := range data.Services {
+				@ServiceGroup(group, layoutForGroup(data.Settings, group.Name), data.Language, data.ScriptsEnabled)
+			}
+		</div>
+	}
+}

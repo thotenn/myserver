@@ -1,0 +1,126 @@
+package templates
+
+import "github.com/thotenn/myserver/internal/config"
+
+templ WidgetContainer(svc config.Service, groupName string, lang string) {
+	<div class="mt-3 pt-2 border-t border-theme-100 dark:border-theme-700"
+		data-widget-type={ svc.Widget.Type }>
+		<!-- Widget data fetched via HTMX proxy -->
+		<div hx-get={ proxyURL(groupName, svc.Name, "default") }
+			hx-trigger="load, every 30s [document.visibilityState === 'visible']"
+			hx-swap="innerHTML"
+			hx-target="this">
+			<span class="htmx-indicator text-xs text-theme-400">{ T(lang, "widgets.loading") }</span>
+		</div>
+	</div>
+}
+
+// PingHTML renders the result of an /api/ping call as an HTMX swap target.
+templ PingHTML(alive bool, latency int64) {
+	if alive {
+		<span class="status-dot status-running"></span>
+		<span class="text-green-600 dark:text-green-400">{ FormatLatency(latency) }</span>
+	} else {
+		<span class="status-dot status-stopped"></span>
+		<span class="text-red-600 dark:text-red-400">offline</span>
+	}
+}
+
+// SiteMonitorHTML renders the result of an /api/siteMonitor call.
+templ SiteMonitorHTML(status int, latency int64) {
+	if status >= 200 && status < 400 {
+		<span class="status-dot status-running"></span>
+		<span class="text-green-600 dark:text-green-400">
+			{ FormatStatusCode(status) } · { FormatLatency(latency) }
+		</span>
+	} else {
+		<span class="status-dot status-stopped"></span>
+		<span class="text-red-600 dark:text-red-400">
+			{ FormatStatusCode(status) }
+		</span>
+	}
+}
+
+templ WidgetBlock(label, value string) {
+	<div class="flex flex-col">
+		<span class="widget-label">{ label }</span>
+		<span class="widget-value">{ value }</span>
+	</div>
+}
+
+// DockerStatsHTML renders a 4-column CPU/MEM/RX/TX compact stats row, the
+// same format as the Node.js Homepage docker stats widget. All values are
+// shown with a mini label and a human-readable value.
+templ DockerStatsHTML(cpu float64, memUsed, memLimit uint64, rxBytes, txBytes float64) {
+	<div class="grid grid-cols-4 gap-1 text-[10px]">
+		<div class="flex flex-col items-center">
+			<span class="text-theme-400">CPU</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatPercent(cpu) }</span>
+		</div>
+		<div class="flex flex-col items-center">
+			<span class="text-theme-400">MEM</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatBytes(float64(memUsed)) }</span>
+		</div>
+		<div class="flex flex-col items-center">
+			<span class="text-theme-400">RX</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatBytes(rxBytes) }</span>
+		</div>
+		<div class="flex flex-col items-center">
+			<span class="text-theme-400">TX</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatBytes(txBytes) }</span>
+		</div>
+	</div>
+}
+
+// DynamicListHTML renders a customapi `display: dynamic-list` payload as a
+// compact list. Used by the Proxy handler when the request comes from HTMX.
+// Items get `pointer-events-auto` so clicks land on the per-item link
+// instead of the card-wide anchor that sits behind the widget container.
+templ DynamicListHTML(items []DynamicListItem) {
+	if len(items) == 0 {
+		<div class="text-xs text-theme-400 italic">no items</div>
+	} else {
+		<ul class="divide-y divide-theme-200 dark:divide-theme-700 text-xs max-h-40 overflow-y-auto pointer-events-auto">
+			for _, it := range items {
+				<li class="py-1 flex items-center justify-between gap-2">
+					if it.Target != "" {
+						<a
+							href={ templ.SafeURL(it.Target) }
+							target="_blank"
+							rel="noreferrer noopener"
+							class="truncate text-theme-800 dark:text-theme-200 hover:text-blue-600 dark:hover:text-blue-400"
+						>{ it.Name }</a>
+					} else {
+						<span class="truncate text-theme-800 dark:text-theme-200">{ it.Name }</span>
+					}
+					if it.Label != "" {
+						<span class="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-theme-100 dark:bg-theme-700 text-theme-700 dark:text-theme-300">
+							{ it.Label }
+						</span>
+					}
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ DockerStatusHTML(status, health string) {
+	<div class="flex items-center gap-1">
+		if status == "running" {
+			<span class="status-dot status-running"></span>
+			<span class="text-green-600 dark:text-green-400">running</span>
+		} else if status == "exited" || status == "dead" {
+			<span class="status-dot status-stopped"></span>
+			<span class="text-red-600 dark:text-red-400">{ status }</span>
+		} else if status == "notfound" {
+			<span class="status-dot status-stopped"></span>
+			<span class="text-red-600 dark:text-red-400">not found</span>
+		} else {
+			<span class="status-dot status-unknown"></span>
+			<span class="text-theme-400">{ status }</span>
+		}
+		if health != "" && health != "none" {
+			<span class="text-theme-400">({ health })</span>
+		}
+	</div>
+}

@@ -1,0 +1,36 @@
+package templates
+
+import "github.com/thotenn/myserver/internal/config"
+
+templ BookmarkGroup(group config.BookmarkGroup) {
+	<section class="mb-4" data-bookmark-group={ group.Name }>
+		<h3 class="text-sm font-semibold text-theme-600 dark:text-theme-400 mb-2 uppercase tracking-wider">
+			{ group.Name }
+		</h3>
+		<div class="flex flex-wrap gap-2">
+			for _, bm := range group.Bookmarks {
+				@BookmarkItem(bm)
+			}
+		</div>
+	</section>
+}
+
+templ BookmarkItem(bm config.Bookmark) {
+	{{ resolvedIcon := resolveBookmarkIcon(bm) }}
+	<a href={ bm.Href }
+		target="_blank"
+		rel="noreferrer"
+		class="bookmark-item group"
+		title={ bm.Name }>
+		if resolvedIcon != "" {
+			<img src={ iconURL(resolvedIcon) } alt="" class="w-4 h-4 bookmark-icon" loading="lazy"/>
+		} else if bm.Abbr != "" {
+			<span class="w-6 h-6 flex items-center justify-center text-xs font-bold bg-theme-200 dark:bg-theme-700 rounded">
+				{ bm.Abbr }
+			</span>
+		}
+		<span class="text-sm text-theme-700 dark:text-theme-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate max-w-[150px]">
+			{ bm.Name }
+		</span>
+	</a>
+}

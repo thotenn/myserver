@@ -1,0 +1,111 @@
+package templates
+
+import "github.com/thotenn/myserver/internal/config"
+
+// ServiceCard renders a single service card. The entire card is clickable
+// via a "stretched link" pattern:
+//
+//   - An absolutely-positioned <a> covers the whole card area (z-10).
+//   - All content is wrapped in a `relative z-20 pointer-events-none` div,
+//     which keeps the content visually on top of the link but lets clicks
+//     pass through to the link underneath.
+//
+// HTMX polling (ping, docker stats) keeps working because the triggers are
+// time-based (`every 5s`), not click-based.
+templ ServiceCard(svc config.Service, groupName string, lang string) {
+	<div class="service-card relative group" data-service={ svc.Name } data-group={ groupName }>
+		if svc.Href != "" {
+			<a href={ templ.SafeURL(svc.Href) }
+				target="_blank"
+				rel="noreferrer noopener"
+				aria-label={ svc.Name }
+				class="absolute inset-0 z-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></a>
+		}
+		<div class="relative z-20 pointer-events-none">
+			<!-- Top row: icon + name/description + ping -->
+			<div class="flex items-start gap-3">
+				if svc.Icon != "" {
+					<img
+						src={ iconURL(svc.Icon) }
+						alt=""
+						class="w-10 h-10 rounded flex-shrink-0 object-contain service-icon"
+						loading="lazy"
+					/>
+				}
+				<div class="flex-1 min-w-0">
+					<div class="flex items-center gap-2">
+						<span class="font-medium text-sm text-theme-800 dark:text-theme-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+							{ svc.Name }
+						</span>
+					</div>
+					if svc.Description != "" {
+						<p class="text-xs text-theme-500 dark:text-theme-400 truncate">{ svc.Description }</p>
+					}
+					<div class="flex items-center gap-2 mt-1 text-[11px]">
+						if svc.Container != "" && svc.Server != "" {
+							<div hx-get={ dockerStatusURL(svc.Container, svc.Server) }
+								hx-trigger="load, every 15s [document.visibilityState === 'visible']"
+								hx-swap="innerHTML"
+								hx-target="this"
+								class="flex items-center gap-1">
+								<span class="status-dot status-unknown"></span>
+								<span class="text-theme-400">…</span>
+							</div>
+						} else if svc.Ping != "" {
+							<div hx-get={ pingURL(groupName, svc.Name) }
+								hx-trigger="load, every 60s [document.visibilityState === 'visible']"
+								hx-swap="innerHTML"
+								hx-target="this"
+								class="flex items-center gap-1">
+								<span class="status-dot status-unknown"></span>
+								<span class="text-theme-400">…</span>
+							</div>
+						} else if svc.SiteMonitor != "" {
+							<div hx-get={ siteMonitorURL(groupName, svc.Name) }
+								hx-trigger="load, every 60s [document.visibilityState === 'visible']"
+								hx-swap="innerHTML"
+								hx-target="this"
+								class="flex items-center gap-1">
+								<span class="status-dot status-unknown"></span>
+								<span class="text-theme-400">…</span>
+							</div>
+						}
+					</div>
+				</div>
+			</div>
+			<!-- Docker stats row (CPU / MEM / RX / TX) -->
+			if svc.Container != "" && svc.Server != "" {
+				<div class="mt-3 pt-2 border-t border-theme-100 dark:border-theme-700"
+					hx-get={ dockerStatsURL(svc.Container, svc.Server) }
+					hx-trigger="load, every 5s [document.visibilityState === 'visible']"
+					hx-swap="innerHTML"
+					hx-target="this">
+					@DockerStatsPlaceholder()
+				</div>
+			}
+			<!-- Widget data (customapi, etc) -->
+			if svc.Widget != nil {
+				@WidgetContainer(svc, groupName, lang)
+			}
+		</div>
+	</div>
+}
+
+// DockerStatsPlaceholder renders an empty stats row shown while the first
+// HTMX fetch is in flight. Keeps the card height stable.
+templ DockerStatsPlaceholder() {
+	<div class="grid grid-cols-4 gap-1 text-[10px]">
+		<div class="flex flex-col items-center text-theme-400">
+			<span>CPU</span><span>—</span>
+		</div>
+		<div class="flex flex-col items-center text-theme-400">
+			<span>MEM</span><span>—</span>
+		</div>
+		<div class="flex flex-col items-center text-theme-400">
+			<span>RX</span><span>—</span>
+		</div>
+		<div class="flex flex-col items-center text-theme-400">
+			<span>TX</span><span>—</span>
+		</div>
+	</div>
+}

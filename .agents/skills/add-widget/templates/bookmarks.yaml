@@ -1,0 +1,300 @@
+# bookmarks.yaml — Bookmark Groups
+#
+# Bookmarks render as compact link pills below the dashboard header.
+# Each top-level item is a group. Inside each group is a list of bookmarks.
+#
+# Hot-reload: YES — save and the dashboard updates instantly.
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Minimal bookmark (name + href only)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Developer:
+    - GitHub:
+        href: https://github.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: Bookmark with abbreviation
+# ═══════════════════════════════════════════════════════════════════════════════
+- Developer:
+    - GitHub:
+        abbr: GH
+        href: https://github.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: Bookmark with icon
+# ═══════════════════════════════════════════════════════════════════════════════
+- Developer:
+    - GitHub:
+        abbr: GH
+        href: https://github.com
+        icon: si:github
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Multiple bookmarks in one group
+# ═══════════════════════════════════════════════════════════════════════════════
+- Developer:
+    - GitHub:
+        abbr: GH
+        href: https://github.com
+        icon: si:github
+
+    - GitLab:
+        abbr: GL
+        href: https://gitlab.com
+        icon: si:gitlab
+
+    - Stack Overflow:
+        abbr: SO
+        href: https://stackoverflow.com
+        icon: si:stackoverflow
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Multiple groups
+# ═══════════════════════════════════════════════════════════════════════════════
+- Developer:
+    - GitHub:
+        abbr: GH
+        href: https://github.com
+        icon: si:github
+
+    - GitLab:
+        abbr: GL
+        href: https://gitlab.com
+        icon: si:gitlab
+
+- Infrastructure:
+    - AWS Console:
+        abbr: AWS
+        href: https://console.aws.amazon.com
+        icon: si:amazonwebservices
+
+    - Cloudflare:
+        abbr: CF
+        href: https://dash.cloudflare.com
+        icon: si:cloudflare
+
+    - Vercel:
+        abbr: VE
+        href: https://vercel.com
+        icon: si:vercel
+
+- Social:
+    - Reddit:
+        abbr: Re
+        href: https://reddit.com
+        icon: si:reddit
+
+    - Twitter:
+        abbr: X
+        href: https://x.com
+        icon: si:x
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Bookmark with auto-detected icon (no icon field)
+# ═══════════════════════════════════════════════════════════════════════════════
+# The system auto-detects Simple-Icons for common names:
+#   GitHub -> si:github, AWS -> si:amazonwebservices, Cloudflare -> si:cloudflare
+- Infrastructure:
+    - GitHub:
+        href: https://github.com
+
+    - AWS:
+        href: https://console.aws.amazon.com
+
+    - Cloudflare:
+        href: https://dash.cloudflare.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Bookmark with custom icon URL
+# ═══════════════════════════════════════════════════════════════════════════════
+- Internal:
+    - Company Portal:
+        abbr: CP
+        href: https://portal.internal
+        icon: https://portal.internal/favicon.png
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 8: Bookmark with MDI icon
+# ═══════════════════════════════════════════════════════════════════════════════
+- Tools:
+    - Terminal:
+        abbr: >_
+        href: https://terminal.example.com
+        icon: mdi:console
+
+    - Logs:
+        abbr: LOG
+        href: https://logs.example.com
+        icon: mdi:file-document-outline
+
+    - Metrics:
+        abbr: MET
+        href: https://metrics.example.com
+        icon: mdi:chart-line
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 9: Bookmark with only abbreviation (no icon)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Quick Links:
+    - Router:
+        abbr: RT
+        href: http://192.168.1.1
+
+    - NAS:
+        abbr: NAS
+        href: http://192.168.1.2
+
+    - DNS:
+        abbr: DNS
+        href: http://192.168.1.3
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 10: Many groups for a large dashboard
+# ═══════════════════════════════════════════════════════════════════════════════
+- Developer:
+    - GitHub:
+        abbr: GH
+        href: https://github.com
+        icon: si:github
+    - GitLab:
+        abbr: GL
+        href: https://gitlab.com
+        icon: si:gitlab
+    - Docker Hub:
+        abbr: DH
+        href: https://hub.docker.com
+        icon: si:docker
+
+- Cloud:
+    - AWS:
+        abbr: AWS
+        href: https://console.aws.amazon.com
+        icon: si:amazonwebservices
+    - Azure:
+        abbr: AZ
+        href: https://portal.azure.com
+        icon: si:microsoftazure
+    - GCP:
+        abbr: GCP
+        href: https://console.cloud.google.com
+        icon: si:googlecloud
+
+- Monitoring:
+    - Grafana:
+        abbr: GR
+        href: https://grafana.example.com
+        icon: si:grafana
+    - Prometheus:
+        abbr: PR
+        href: https://prometheus.example.com
+        icon: si:prometheus
+    - Alertmanager:
+        abbr: AL
+        href: https://alerts.example.com
+        icon: si:prometheus
+
+- Documentation:
+    - Wiki:
+        abbr: WK
+        href: https://wiki.example.com
+        icon: mdi:book-open-variant
+    - API Docs:
+        abbr: API
+        href: https://docs.example.com
+        icon: mdi:api
+    - Runbooks:
+        abbr: RB
+        href: https://runbooks.example.com
+        icon: mdi:notebook
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 11: Bookmark group for homelab admin
+# ═══════════════════════════════════════════════════════════════════════════════
+- Admin:
+    - Proxmox:
+        abbr: PX
+        href: https://proxmox.example.com:8006
+        icon: si:proxmox
+    - Portainer:
+        abbr: PT
+        href: https://portainer.example.com
+        icon: si:portainer
+    - Traefik:
+        abbr: TR
+        href: https://traefik.example.com
+        icon: si:traefik
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 12: Bookmark with env var substitution
+# ═══════════════════════════════════════════════════════════════════════════════
+- Internal:
+    - Dashboard:
+        abbr: DB
+        href: "{{HOMEPAGE_VAR_DASHBOARD_URL}}"
+        icon: mdi:view-dashboard
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 13: Minimal bookmark list (one group, two links)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Links:
+    - Google:
+        href: https://google.com
+    - Reddit:
+        href: https://reddit.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 14: Bookmark with simpleicons variant names
+# ═══════════════════════════════════════════════════════════════════════════════
+- Media:
+    - Plex:
+        abbr: PX
+        href: https://plex.example.com
+        icon: si:plex
+    - Jellyfin:
+        abbr: JF
+        href: https://jellyfin.example.com
+        icon: si:jellyfin
+    - Sonarr:
+        abbr: SN
+        href: https://sonarr.example.com
+        icon: si:sonarr
+    - Radarr:
+        abbr: RD
+        href: https://radarr.example.com
+        icon: si:radarr
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 15: Bookmark group for a team
+# ═══════════════════════════════════════════════════════════════════════════════
+- Team:
+    - Jira:
+        abbr: JI
+        href: https://jira.example.com
+        icon: si:jira
+    - Confluence:
+        abbr: CF
+        href: https://confluence.example.com
+        icon: si:confluence
+    - Slack:
+        abbr: SL
+        href: https://slack.example.com
+        icon: si:slack
+    - GitHub:
+        abbr: GH
+        href: https://github.com/example
+        icon: si:github

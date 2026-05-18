@@ -1,0 +1,427 @@
+# services.yaml — Service Groups and Cards
+#
+# Each top-level item is a group. Inside each group is a list of services.
+# The group name and service name are the YAML keys.
+#
+# Hot-reload: YES — save and the dashboard updates instantly.
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Minimal card (icon + name + link)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Nginx:
+        href: https://nginx.example.com
+        description: Reverse proxy
+        icon: si:nginx
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: Card with Docker stats and status
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Nginx:
+        href: https://nginx.example.com
+        description: Reverse proxy
+        icon: si:nginx
+        container: nginx
+        server: local
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: Card with ping badge
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Router:
+        href: http://192.168.1.1
+        description: Home router
+        icon: mdi:router-wireless
+        ping: 192.168.1.1
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Card with site monitor (HTTP health check)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Monitoring:
+    - API:
+        href: https://api.example.com
+        description: REST API
+        icon: mdi:api
+        siteMonitor: https://api.example.com/health
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Card with built-in widget (Plex)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Media:
+    - Plex:
+        href: https://plex.example.com
+        description: Media server
+        icon: si:plex
+        container: plex
+        server: local
+        widget:
+          type: plex
+          url: http://localhost:32400
+          key: YOUR_PLEX_TOKEN
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Card with Sonarr widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Media:
+    - Sonarr:
+        href: https://sonarr.example.com
+        description: TV shows
+        icon: si:sonarr
+        widget:
+          type: sonarr
+          url: http://localhost:8989
+          key: YOUR_SONARR_API_KEY
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Card with qBittorrent widget (basic auth)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Download Clients:
+    - qBittorrent:
+        href: https://qbittorrent.example.com
+        description: Torrent client
+        icon: si:qbittorrent
+        widget:
+          type: qbittorrent
+          url: http://localhost:8080
+          username: admin
+          password: adminadmin
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 8: Card with Pi-hole widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Networking:
+    - Pi-hole:
+        href: http://localhost/admin
+        description: DNS blocker
+        icon: si:pihole
+        widget:
+          type: pihole
+          url: http://localhost/admin
+          key: YOUR_PIHOLE_API_TOKEN
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 9: Card with Portainer widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Portainer:
+        href: https://portainer.example.com
+        description: Container management
+        icon: si:portainer
+        widget:
+          type: portainer
+          url: https://portainer.example.com
+          key: YOUR_PORTAINER_API_KEY
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 10: Card with Proxmox widget (token auth)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Proxmox:
+        href: https://proxmox.example.com:8006
+        description: Virtualization
+        icon: si:proxmox
+        widget:
+          type: proxmox
+          url: https://proxmox.example.com:8006
+          token: USER@PVE!TOKENID
+          secret: YOUR_SECRET
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 11: Script card (execute button)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Administration:
+    - Backup:
+        description: Run nightly backup
+        icon: mdi:backup-restore
+        script: backup
+        requireConfirm: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 12: customapi widget — text display
+# ═══════════════════════════════════════════════════════════════════════════════
+- Monitoring:
+    - Active Users:
+        href: https://analytics.example.com
+        description: Live user count
+        icon: mdi:account-group
+        widget:
+          type: customapi
+          url: https://analytics.example.com/api/stats
+          display: text
+          mappings:
+            field: active_users
+            format: number
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 13: customapi widget — dynamic list (local JSON)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Tools:
+    - Demos:
+        href: https://demos.example.com
+        description: Internal demo catalog
+        icon: si:github
+        widget:
+          type: customapi
+          url: file://data/demos.json
+          display: dynamic-list
+          mappings:
+            items: demos
+            name: title
+            label: version
+            target: url
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 14: customapi widget — dynamic list (remote API)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Tools:
+    - Releases:
+        href: https://releases.example.com
+        description: Latest releases
+        icon: mdi:tag
+        widget:
+          type: customapi
+          url: https://releases.example.com/api/releases
+          display: dynamic-list
+          mappings:
+            items: releases
+            name: name
+            label: tag
+            target: html_url
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 15: customapi widget — graph display
+# ═══════════════════════════════════════════════════════════════════════════════
+- Monitoring:
+    - Requests:
+        href: https://analytics.example.com
+        description: Request volume
+        icon: mdi:chart-bar
+        widget:
+          type: customapi
+          url: https://analytics.example.com/api/metrics
+          display: graph
+          mappings:
+            items: data
+            name: label
+            value: count
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 16: Card with weight (sort order)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Nginx:
+        href: https://nginx.example.com
+        description: Reverse proxy
+        icon: si:nginx
+        weight: 10
+        container: nginx
+        server: local
+
+    - Database:
+        href: https://postgres.example.com
+        description: PostgreSQL
+        icon: si:postgresql
+        weight: 20
+        container: postgres
+        server: local
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 17: Full combo card (Docker + ping + widget)
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Grafana:
+        href: https://grafana.example.com
+        description: Metrics & dashboards
+        icon: si:grafana
+        container: grafana
+        server: local
+        ping: grafana.example.com
+        widget:
+          type: grafana
+          url: https://grafana.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 18: Card with custom icon URL
+# ═══════════════════════════════════════════════════════════════════════════════
+- Custom:
+    - Internal App:
+        href: https://app.internal
+        description: Company internal tool
+        icon: https://app.internal/favicon.png
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 19: Card with env var substitution
+# ═══════════════════════════════════════════════════════════════════════════════
+- Infrastructure:
+    - Plex:
+        href: https://plex.example.com
+        description: Media server
+        icon: si:plex
+        widget:
+          type: plex
+          url: http://localhost:32400
+          key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 20: Nextcloud widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Productivity:
+    - Nextcloud:
+        href: https://cloud.example.com
+        description: File sync & share
+        icon: si:nextcloud
+        widget:
+          type: nextcloud
+          url: https://cloud.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 21: Radarr widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Media:
+    - Radarr:
+        href: https://radarr.example.com
+        description: Movies
+        icon: si:radarr
+        widget:
+          type: radarr
+          url: http://localhost:7878
+          key: YOUR_RADARR_API_KEY
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 22: Jellyfin widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Media:
+    - Jellyfin:
+        href: https://jellyfin.example.com
+        description: Media server
+        icon: si:jellyfin
+        widget:
+          type: jellyfin
+          url: http://localhost:8096
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 23: Traefik widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Networking:
+    - Traefik:
+        href: https://traefik.example.com
+        description: Edge router
+        icon: si:traefik
+        widget:
+          type: traefik
+          url: https://traefik.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 24: AdGuard Home widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Networking:
+    - AdGuard:
+        href: http://localhost:3000
+        description: DNS blocker
+        icon: si:adguard
+        widget:
+          type: adguard
+          url: http://localhost:3000
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 25: Uptime Kuma widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Monitoring:
+    - Uptime Kuma:
+        href: https://uptime.example.com
+        description: Service uptime
+        icon: si:uptimekuma
+        widget:
+          type: uptimekuma
+          url: https://uptime.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 26: Netdata widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Monitoring:
+    - Netdata:
+        href: https://netdata.example.com
+        description: Real-time monitoring
+        icon: si:netdata
+        widget:
+          type: netdata
+          url: https://netdata.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 27: Tailscale widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Networking:
+    - Tailscale:
+        href: https://login.tailscale.com/admin
+        description: VPN mesh
+        icon: si:tailscale
+        widget:
+          type: tailscale
+          url: https://login.tailscale.com/admin
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 28: Paperless-ngx widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Productivity:
+    - Paperless:
+        href: https://paperless.example.com
+        description: Document management
+        icon: si:paperlessngx
+        widget:
+          type: paperlessngx
+          url: https://paperless.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 29: Vikunja widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Productivity:
+    - Vikunja:
+        href: https://vikunja.example.com
+        description: Task manager
+        icon: si:vikunja
+        widget:
+          type: vikunja
+          url: https://vikunja.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 30: PhotoPrism widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- Media:
+    - PhotoPrism:
+        href: https://photos.example.com
+        description: Photo management
+        icon: si:photoprism
+        widget:
+          type: photoprism
+          url: https://photos.example.com

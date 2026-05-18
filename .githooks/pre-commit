@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit hook: reject commits with unformatted Go code or vet errors.
+
+set -e
+
+# Check formatting
+FMT_OUT=$(gofmt -l .)
+if [ -n "$FMT_OUT" ]; then
+    echo "Unformatted Go files:"
+    echo "$FMT_OUT"
+    exit 1
+fi
+
+# Check vet
+go vet ./...

@@ -1,0 +1,279 @@
+# widgets.yaml — Info Widgets (Top Bar)
+#
+# These render in the dashboard header area.
+# Each item is a map: {widgetType: {options}}.
+#
+# Hot-reload: YES — save and the dashboard updates instantly.
+#
+# `search:` is the unified search bar: web-search on Enter + live
+# QuickLaunch dropdown (services + bookmarks) as you type. Use this
+# instead of `settings.yaml: quicklaunch:`, which is now legacy.
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Search widget (Google)
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: google
+    target: _blank
+    showSearchSuggestions: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: Search widget (DuckDuckGo)
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: duckduckgo
+    target: _blank
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: Datetime widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- datetime:
+    format: long          # long | short | time
+    locale: en-US
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Datetime widget (short format, Spanish)
+# ═══════════════════════════════════════════════════════════════════════════════
+- datetime:
+    format: short
+    locale: es-ES
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Greeting widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- greeting:
+    text: "Welcome back"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Greeting widget (custom)
+# ═══════════════════════════════════════════════════════════════════════════════
+- greeting:
+    text: "Good to see you"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Open-Meteo weather (no API key required)
+# ═══════════════════════════════════════════════════════════════════════════════
+- openmeteo:
+    latitude: -25.2637
+    longitude: -57.5759
+    units: metric
+    cache: 5              # minutes
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 8: Open-Meteo weather (different city)
+# ═══════════════════════════════════════════════════════════════════════════════
+- openmeteo:
+    latitude: 40.7128
+    longitude: -74.0060
+    units: metric
+    cache: 5
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 9: OpenWeatherMap weather (requires API key)
+# ═══════════════════════════════════════════════════════════════════════════════
+- weather:
+    latitude: -25.2637
+    longitude: -57.5759
+    apiKey: YOUR_OPENWEATHER_API_KEY
+    units: metric
+    cache: 5
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 10: Resources widget (full)
+# ═══════════════════════════════════════════════════════════════════════════════
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    uptime: true
+    temp: true
+    label: "Server"
+    refresh: 5000         # ms
+    expanded: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 11: Resources widget (compact — CPU + RAM only)
+# ═══════════════════════════════════════════════════════════════════════════════
+- resources:
+    cpu: true
+    memory: true
+    label: "System"
+    refresh: 5000
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 12: Resources widget (disk only)
+# ═══════════════════════════════════════════════════════════════════════════════
+- resources:
+    disk: /
+    label: "Disk"
+    refresh: 30000
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 13: Stocks widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- stocks:
+    provider: yahoo
+    symbols:
+      - AAPL
+      - GOOGL
+      - TSLA
+    cache: 15             # minutes
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 14: Combined top bar (search + datetime + greeting + weather)
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: google
+    target: _blank
+
+- datetime:
+    format: long
+    locale: en-US
+
+- greeting:
+    text: "Welcome back"
+
+- openmeteo:
+    latitude: -25.2637
+    longitude: -57.5759
+    units: metric
+    cache: 5
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 15: Minimal top bar (datetime only)
+# ═══════════════════════════════════════════════════════════════════════════════
+- datetime:
+    format: short
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 16: Two weather widgets (different cities)
+# ═══════════════════════════════════════════════════════════════════════════════
+- openmeteo:
+    latitude: -25.2637
+    longitude: -57.5759
+    units: metric
+    cache: 5
+
+- openmeteo:
+    latitude: 40.7128
+    longitude: -74.0060
+    units: metric
+    cache: 5
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 17: Resources + search combo
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: duckduckgo
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    uptime: true
+    label: "Homelab"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 18: Greeting with custom text per time of day
+# ═══════════════════════════════════════════════════════════════════════════════
+# The greeting widget shows different text based on time of day automatically.
+# The "text" field is a fallback / prefix.
+- greeting:
+    text: "Dashboard"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 19: Longhorn widget (Kubernetes storage)
+# ═══════════════════════════════════════════════════════════════════════════════
+- longhorn:
+    url: http://longhorn.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 20: Kubernetes info widget
+# ═══════════════════════════════════════════════════════════════════════════════
+- kubernetes:
+    url: https://k8s.example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 21: Search with Bing
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: bing
+    target: _blank
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 22: Search with no internet search (only local)
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: google
+    hideInternetSearch: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 23: Resources with multiple disks
+# ═══════════════════════════════════════════════════════════════════════════════
+- resources:
+    cpu: true
+    memory: true
+    disk:
+      - /
+      - /data
+    uptime: true
+    label: "Server"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 24: Minimal greeting (no custom text)
+# ═══════════════════════════════════════════════════════════════════════════════
+- greeting: {}
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 25: Full dashboard header
+# ═══════════════════════════════════════════════════════════════════════════════
+- search:
+    provider: google
+    target: _blank
+    showSearchSuggestions: true
+
+- datetime:
+    format: long
+    locale: en-US
+
+- greeting:
+    text: "Homelab"
+
+- openmeteo:
+    latitude: 51.5074
+    longitude: -0.1278
+    units: metric
+    cache: 5
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    uptime: true
+    label: "Server"
+    refresh: 5000

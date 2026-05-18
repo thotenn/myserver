@@ -1,0 +1,43 @@
+package templates
+
+templ Header(data PageData) {
+	<header class="mb-6 pt-4">
+		<!-- Top bar: resource widgets + datetime/weather/theme toggle -->
+		<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+			<div class="flex flex-wrap items-center gap-3 flex-1">
+				for _, w := range data.Widgets {
+					if w.Type == "resources" {
+						@ResourcesWidget(w.Options)
+					}
+				}
+			</div>
+			<div class="flex items-center gap-3 flex-shrink-0">
+				for _, w := range data.Widgets {
+					if w.Type == "weather" || w.Type == "openmeteo" || w.Type == "openweathermap" {
+						@WeatherWidget(w.Options)
+					}
+					if w.Type == "datetime" {
+						@DatetimeWidget(data.Language)
+					}
+					if w.Type == "greeting" {
+						@GreetingWidget(data.Language)
+					}
+				}
+				@ThemeToggle()
+			</div>
+		</div>
+		<!-- Title + unified search (web search + live QuickLaunch dropdown) -->
+		<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+			<div class="flex items-center gap-4">
+				if data.Settings.Title != "" {
+					<h1 class="text-xl font-semibold text-theme-800 dark:text-theme-200">
+						{ data.Settings.Title }
+					</h1>
+				}
+			</div>
+			if showSearchBar(data) {
+				@SearchWidget(data.Language)
+			}
+		</div>
+	</header>
+}

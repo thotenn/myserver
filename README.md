@@ -95,6 +95,13 @@ make up && make logs
 
 The dashboard listens on `:3000` by default — override with `-port`.
 
+> **Deploying behind a public hostname?** Set
+> `HOMEPAGE_ALLOWED_HOSTS=your.domain.com` (comma-separated, port-aware).
+> Without it, MyServer accepts `localhost` only — the HTML cards render but
+> every HTMX call to `/api/*` (Docker stats, resources, `customapi`)
+> returns 403 and the dashboard looks empty. See
+> [`docs/context/troubleshooting.md`](docs/context/troubleshooting.md#host-validation-failed).
+
 ---
 
 ## Configuration in 30 seconds

@@ -38,6 +38,13 @@ services:
     environment:
       - HOMEPAGE_CONFIG_DIR=/app/config
       - TZ=America/Asuncion
+      # Go runtime tuning — without these the runtime ignores the cgroup
+      # limit (`memory: 256M` below) and RSS settles around ~135 MB because
+      # GOGC=100 lets the heap double before collecting. GOMEMLIMIT makes the
+      # GC aggressive near the ceiling and the scavenger returns pages to
+      # the OS; GOGC=50 grows the heap by +50% instead of +100% between GCs.
+      - GOMEMLIMIT=80MiB
+      - GOGC=50
       # Override these via Coolify env UI:
       #   HOMEPAGE_ALLOWED_HOSTS=htop.thotenn.com,htop.thotenn.com:443,localhost:3000
       #   HOMEPAGE_SCRIPTS_ENABLED=true

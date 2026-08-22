@@ -8,8 +8,14 @@
 # variables where you deploy (a `.env` next to this file, or your platform's
 # environment UI):
 #
+#   MYSERVER_CONFIG_DIR  REQUIRED. Absolute path of the host directory that
+#                        holds your YAML config. There is deliberately no
+#                        default: a wrong config directory fails *silently*
+#                        (the entrypoint seeds the skeleton and you get the
+#                        stock dashboard), so this file refuses to start
+#                        rather than guess. For a throwaway/local run use
+#                        `docker-compose.dev.yml`, which mounts ./config.
 #   MYSERVER_HOST_PORT   host port to publish            (default 8085)
-#   MYSERVER_CONFIG_DIR  host dir holding the YAML config (default ./config)
 #   TZ                   container timezone              (default Etc/UTC)
 #
 #   HOMEPAGE_ALLOWED_HOSTS       comma-separated public hostnames, e.g.
@@ -60,7 +66,7 @@ services:
       # Config YAML — bind mount from the host. Edit the files on the host
       # with your usual editor; fsnotify inside the container detects the
       # change and hot-reloads without a restart.
-      - ${MYSERVER_CONFIG_DIR:-./config}:/app/config
+      - ${MYSERVER_CONFIG_DIR:?set MYSERVER_CONFIG_DIR to the absolute host path of your config directory (e.g. /srv/myserver/config)}:/app/config
       # Audit log + runtime data
       - myserver-data:/app/data
       # Docker socket — read/write so script wrappers can call

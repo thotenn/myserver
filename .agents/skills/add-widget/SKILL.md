@@ -7,7 +7,8 @@ instance — without writing Go code.
 > **Companion files**
 > - `COOKBOOK.md` — complete examples, troubleshooting, advanced recipes.
 > - `templates/` — copy-paste YAML templates (one file per `config/` YAML).
-> - `guides/customapi.md`, `guides/file-scheme.md` — feature deep dives.
+> - `guides/customapi.md`, `guides/file-scheme.md`, `guides/allowlist.md` —
+>   feature deep dives.
 > - `scripts/templates.sh` — shell script templates.
 
 ---
@@ -33,14 +34,16 @@ config/
   docker.yaml        # docker/podman server definitions
   proxmox.yaml       # proxmox token-auth servers
   scripts.yaml       # script definitions (opt-in feature)
+  auth.yaml          # email allowlist (optional; absent = public dashboard)
   scripts/           # executable .sh files
   data/              # local JSON data sources (read via file://)
   custom.css         # injected into <head>
   custom.js          # injected before </body>
 ```
 
-By default the directory is at `/srv/myserver/config/` on the host, mounted to
-`/app/config` inside the container.
+Inside the container the directory is always `/app/config`. On the host it is
+wherever the bind mount points — check the `volumes:` entry of the compose file
+rather than assuming a path.
 
 ---
 
@@ -58,6 +61,7 @@ By default the directory is at `/srv/myserver/config/` on the host, mounted to
 | Bookmark pill | `bookmarks.yaml` | [Bookmarks](#bookmarks) |
 | Change theme, title, columns, layout, tabs | `settings.yaml` | [Settings](#settings) |
 | Custom CSS / JS | `custom.css` / `custom.js` | `COOKBOOK.md` recipes 3 + 4 |
+| Require a login / restrict who can see the dashboard | `auth.yaml` | [Email allowlist](#email-allowlist-login) · [`guides/allowlist.md`](guides/allowlist.md) |
 
 ---
 
@@ -104,7 +108,7 @@ Field reference:
 
 ## Built-in widgets
 
-160+ widgets are registered in the binary. Configure them inline under
+46 widget types are registered in the binary. Configure them inline under
 `widget:` on a service card. The `GenericProxyHandler` queries the registry
 for `APITemplate()` and `Mappings()` automatically.
 
@@ -509,6 +513,87 @@ If the variable / file does not exist, the placeholder is preserved literally
 
 ---
 
+## Email allowlist (login)
+
+Optional. Turns the whole dashboard private, gated by Google sign-in and an
+explicit list of addresses. Full walkthrough — creating the Google OAuth
+client, wiring credentials, day-to-day add/remove, troubleshooting — in
+**[`guides/allowlist.md`](guides/allowlist.md)**. Template with seven worked
+examples: `templates/auth.yaml`.
+
+**The allowlist is the switch.** There is no `enabled` flag:
+
+| `config/auth.yaml` | Result |
+|---|---|
+| absent | Public dashboard (default, unchanged behaviour) |
+| present, `emails: []` | Public dashboard |
+| present, one or more addresses | Login required for everything |
+
+```yaml
+# config/auth.yaml — minimum working config
+allowlist:
+  emails:
+    - owner@example.com
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+```
+
+Hot-reload: yes. Adding or removing an address takes effect on the **next
+request** — a removed person is evicted immediately, not when their cookie
+expires.
+
+### The five things to get right
+
+1. **`redirectURL` must match Google character for character.** The path is
+   `/auth/google/callback` — slashes, not dots, no trailing slash, same scheme
+   and host the user browses. A mismatch fails with `redirect_uri_mismatch`
+   before the consent screen appears. This is the most common setup error.
+2. **Environment variables first, file second.** An `auth.yaml` whose
+   `{{HOMEPAGE_VAR_*}}` placeholders cannot be resolved makes the process
+   refuse to start. Verify with
+   `docker exec <container> printenv | grep HOMEPAGE_VAR_GOOGLE`. On Compose,
+   a host variable only reaches the container if the service declares it under
+   `environment:`.
+3. **To go back to public, empty the list — never delete the file.** A file
+   that vanishes while sign-in is active gives 503 on everything, on purpose:
+   "deleted deliberately" and "the mount broke" are indistinguishable, and
+   guessing wrong would publish the dashboard.
+4. **A broken `auth.yaml` never opens the dashboard.** A YAML typo keeps the
+   last working allowlist and logs the error. That is deliberate — the whole
+   point is that no config failure can result in a public dashboard.
+5. **Have the user test a non-allowlisted account too.** A login that lets
+   everyone in looks exactly like one that works. The second account must get
+   403.
+
+### Already behind Cloudflare Access / Authelia / oauth2-proxy?
+
+Skip OAuth entirely — read the identity the proxy already asserts, through the
+same allowlist:
+
+```yaml
+provider: trustedHeader
+trustedHeader:
+  header: "Cf-Access-Authenticated-User-Email"
+allowlist:
+  emails:
+    - owner@example.com
+```
+
+Only honoured when the immediate peer is in `TRUSTED_PROXIES`. Never suggest
+it without a proxy actually in front.
+
+### What gets protected
+
+Everything except `/static/*`, `/auth/*`, `/api/healthcheck`, and anything the
+user lists in `publicPaths`. That includes `/api/services`, `/api/widgets`,
+`/api/services/proxy` and `/api/scripts/*` — so anonymous scripts hitting the
+API stop working, while the container healthcheck keeps working.
+
+---
+
 ## Safety rules — never violate
 
 1. **Never commit secrets to YAML files.** Always pull through
@@ -523,8 +608,15 @@ If the variable / file does not exist, the placeholder is preserved literally
    bind mount carries config + executables.
 6. **Don't try to override** the env denylist (`LD_PRELOAD`, `PATH`, etc.) —
    the manager rejects them at registration.
-7. **The dashboard has no internal auth** — assume an external auth layer
-   (Cloudflare Access, oauth2-proxy, etc.) is mandatory in production.
+7. **The dashboard is public unless something guards it.** Either put an
+   external auth layer in front (Cloudflare Access, Authelia, oauth2-proxy…)
+   or enable the built-in [email allowlist](#email-allowlist-login). Never
+   leave a production deployment with neither.
+8. **Never write the OAuth client secret into `auth.yaml`** — use
+   `{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}`.
+9. **Never tell a user to delete `auth.yaml` to make the dashboard public
+   again.** That answers 503 on everything. Empty the list instead:
+   `emails: []`.
 
 ---
 
@@ -590,7 +682,11 @@ If the variable / file does not exist, the placeholder is preserved literally
 | System | `docker` `glances` `resources` `speedtest` `photoprism` `vikunja` `longhorn` |
 | Flexible | `customapi` |
 | Info (top bar) | `datetime` `greeting` `search` `weather` `openmeteo` `stocks` `kubernetes` `longhorn` |
-| Aliases | `jellyseerr` → `overseerr`, `seerr` → `overseerr`, `openweathermap` → `weather`, `hoarder` → `karakeep` |
+| Aliases | `jellyseerr` → `overseerr`, `seerr` → `overseerr`, `openweathermap` → `weather` |
+
+> `hoarder` is registered as an alias of `karakeep`, but no `karakeep` widget
+> exists in the registry, so the alias resolves to nothing and the widget is
+> reported as unknown. Don't suggest either name until that is fixed.
 
 ---
 
@@ -600,5 +696,6 @@ If the variable / file does not exist, the placeholder is preserved literally
 - **Per-file YAML templates** (lots of examples): `templates/`
 - **`customapi` deep dive**: `guides/customapi.md`
 - **`file://` deep dive**: `guides/file-scheme.md`
+- **Login / email allowlist, end to end**: `guides/allowlist.md`
 - **Shell script templates**: `scripts/templates.sh`
 - **Project docs**: `../../README.md` (user-facing), `../../CLAUDE.md` (agent-facing)

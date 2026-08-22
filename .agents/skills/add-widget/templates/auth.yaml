@@ -1,0 +1,159 @@
+# auth.yaml — Email Allowlist (optional login)
+#
+# The allowlist IS the switch. There is no `enabled` flag:
+#   no file, or an empty allowlist  -> dashboard is public (default)
+#   one or more addresses           -> Google sign-in required for everything
+#
+# Hot-reload: YES. Adding or removing an address takes effect on the next
+# request — a removed address is evicted immediately, not when their cookie
+# expires.
+#
+# TO GO BACK TO PUBLIC: empty the list (`emails: []`). Do NOT delete the file:
+# a file that vanishes while sign-in is active makes MyServer answer 503 on
+# everything, because "deleted on purpose" and "the mount broke" look the same
+# and guessing wrong would publish the dashboard.
+#
+# Setup walkthrough (Google Cloud console, credentials, troubleshooting):
+#   ../guides/allowlist.md
+# Reference: docs/context/authentication.md
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 1: Minimum working config — one person, Google sign-in
+# ═══════════════════════════════════════════════════════════════════════════════
+# The client id/secret come from an OAuth client of type "Web application" in
+# console.cloud.google.com. NEVER write the secret here — use the placeholders
+# and set HOMEPAGE_VAR_GOOGLE_CLIENT_ID / _SECRET in the environment.
+allowlist:
+  emails:
+    - owner@example.com
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  # Must match the Authorized redirect URI in Google CHARACTER FOR CHARACTER.
+  # The path is /auth/google/callback — slashes, not dots, no trailing slash.
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 2: A few people, with sessions that survive redeploys
+# ═══════════════════════════════════════════════════════════════════════════════
+allowlist:
+  emails:
+    - owner@example.com
+    - partner@example.com
+    - contractor@othercompany.example
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+
+session:
+  # Without this a random key is generated at every start, so everyone is
+  # signed out on each restart or redeploy. Generate one with:
+  #   openssl rand -hex 32
+  secret:     "{{HOMEPAGE_VAR_AUTH_SESSION_SECRET}}"
+  maxAge:     "168h"            # 7 days (default)
+  cookieName: "myserver_session"
+  secure:     true              # false ONLY for http://localhost testing
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 3: A whole company domain, plus one outside guest
+# ═══════════════════════════════════════════════════════════════════════════════
+# `emails` and `domains` are additive. Domains may be written with or without
+# a leading @. Matching ignores case and whitespace — but NOT Gmail's dots:
+# j.perez@gmail.com and jperez@gmail.com are the same mailbox to Google and
+# two different entries here. List addresses exactly as spelled.
+allowlist:
+  emails:
+    - guest@othercompany.example
+  domains:
+    - mycompany.example
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+  # Optional: pre-selects the Workspace tenant on the Google screen. It is a
+  # UX hint only — the allowlist is what actually grants access.
+  hostedDomain: "mycompany.example"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 4: Already behind an SSO proxy — no OAuth client needed
+# ═══════════════════════════════════════════════════════════════════════════════
+# Reads the identity the front proxy asserts and puts it through the SAME
+# allowlist. Five lines, no cookies, no Google setup.
+#
+# The header is honoured ONLY when the immediate peer is in TRUSTED_PROXIES
+# (default 127.0.0.1/8,::1/128). Without a proxy actually in front, anyone
+# could set the header themselves — never use this bare.
+#
+#   Cloudflare Access -> Cf-Access-Authenticated-User-Email
+#   Authelia          -> Remote-Email
+#   oauth2-proxy      -> X-Forwarded-Email
+#   Authentik         -> X-Authentik-Email
+provider: trustedHeader
+
+trustedHeader:
+  header: "Cf-Access-Authenticated-User-Email"
+
+allowlist:
+  emails:
+    - owner@example.com
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 5: Public mail domains — the guard and its escape hatch
+# ═══════════════════════════════════════════════════════════════════════════════
+# Listing gmail.com (or outlook/yahoo/proton/icloud/…) under `domains:` would
+# admit anyone on the internet able to register an address there, so MyServer
+# REFUSES TO START unless you say so explicitly.
+#
+# This almost always means you wanted `emails:` instead — individual Gmail
+# addresses under `emails:` are perfectly normal and need no escape hatch.
+allowlist:
+  emails:
+    - someone@gmail.com          # ← fine, no flag needed
+  domains:
+    - gmail.com                  # ← needs the flag below, and is rarely right
+allowPublicDomains: true
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 6: Opening an extra path without a session
+# ═══════════════════════════════════════════════════════════════════════════════
+# Public by default: /static/*, /auth/*, /api/healthcheck.
+# Everything else needs a session — including /api/services, /api/widgets,
+# /api/services/proxy and /api/scripts/*.
+#
+# custom.css is gated by default so the login page carries no operator CSS.
+# Open it if you want the login screen to match the dashboard's look.
+allowlist:
+  emails:
+    - owner@example.com
+
+publicPaths:
+  - /api/config/custom.css
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLE 7: Back to public — the correct way
+# ═══════════════════════════════════════════════════════════════════════════════
+# A well-formed file with nobody listed is the ONLY thing that reopens the
+# dashboard. Keep the file; empty the list.
+allowlist:
+  emails: []

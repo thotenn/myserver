@@ -202,7 +202,7 @@ Enabled with `HOMEPAGE_SCRIPTS_ENABLED=true`.
 - i18n via `T(lang, "key")` with hardcoded map in `internal/templates/i18n.go`
 - Structured logs with zap; never `fmt.Printf`
 - Handlers return generic messages to the client, log details internally (don't leak paths, stack traces, etc.)
-- NO internal auth. Auth must be provided by a reverse proxy or external access layer in front of the application.
+- Public by default: guard the dashboard with either an external auth layer (reverse proxy, Cloudflare Access, Authelia…) or the built-in email allowlist (`config/auth.yaml`, see [`authentication.md`](./authentication.md)). There are no local usernames or passwords.
 
 ---
 
@@ -215,6 +215,8 @@ Enabled with `HOMEPAGE_SCRIPTS_ENABLED=true`.
 | `HOMEPAGE_SCRIPTS_ENABLED` | `true` to enable scripts feature |
 | `HOMEPAGE_ALLOW_PRIVATE_HOSTS` | `true` (default) allows proxy to private IPs and loopback |
 | `HOMEPAGE_PROXY_DISABLE_IPV6` | `true` forces IPv4 in proxy |
-| `HOMEPAGE_ENABLE_HSTS` | `true` adds `Strict-Transport-Security` header |
-| `HOMEPAGE_TRUSTED_PROXIES` | Comma-separated list of trusted proxy IPs/CIDRs |
+| `HOMEPAGE_HSTS` | `true` adds `Strict-Transport-Security` header |
+| `TRUSTED_PROXIES` | Comma-separated list of trusted proxy IPs/CIDRs |
 | `DEBUG` | `true` uses zap Development mode (verbose logs) |
+| `HOMEPAGE_AUTH_REQUIRED` | `true` refuses to start without an email allowlist, and answers 503 whenever the auth policy is unavailable |
+| `HOMEPAGE_VAR_*` / `HOMEPAGE_FILE_*` | Substituted into any YAML. Used for the Google OAuth client id/secret and the session key — see [`authentication.md`](./authentication.md) |

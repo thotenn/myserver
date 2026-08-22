@@ -181,3 +181,68 @@ env:
 4. `scripts.yaml` entries hot-reload via `Manager.ReplaceAll()`. Changes
    to `settings.scripts.scriptDirs` (etc.) do NOT — see
    [`scripts.md`](./scripts.md#hot-reload-caveat).
+
+---
+
+## Authentication (email allowlist)
+
+Only applies when `config/auth.yaml` lists at least one address. Full guide:
+[`authentication.md`](./authentication.md).
+
+### The whole dashboard answers 503
+
+The auth policy could not be read, and an unreadable policy deliberately never
+degrades to a public dashboard.
+
+1. `docker logs <container> 2>&1 | grep -i auth` — the log names the cause.
+2. Usual suspects: a YAML syntax error in `auth.yaml`, the file missing (a bind
+   mount that did not come up), or a first-ever policy failing validation.
+3. Fix the file; the next request recovers, no restart needed.
+4. To reopen the dashboard right now, set `emails: []` — a well-formed file
+   with an empty allowlist. **Deleting the file does not work**: with sign-in
+   active, a vanished file is treated as a failure, not as consent to go
+   public.
+
+### The container restarts in a loop after enabling sign-in
+
+Startup validation failed. The log names the field, e.g. *"google.clientId
+still holds an unresolved placeholder"*.
+
+1. The environment variables did not reach the container:
+   `docker exec <container> printenv | grep HOMEPAGE_VAR_GOOGLE`
+2. On Compose, a host variable is only forwarded if the service declares it
+   under `environment:`. Setting it in a PaaS UI populates the *deployment*
+   environment; the Compose file still has to pass it through.
+3. Set the variables **before** writing `auth.yaml`, not after.
+
+### Google rejects the login with `redirect_uri_mismatch`
+
+`redirectURL` in `auth.yaml` and the *Authorized redirect URI* in the Google
+console differ. Compare them character by character: `/auth/google/callback`
+(slashes, not dots), same scheme, same host, no trailing slash. Console changes
+take a few minutes to propagate.
+
+### Sign-in succeeds but the dashboard answers 403
+
+Working as intended: the account is authenticated but not on the allowlist.
+`grep "not in allowlist"` in the logs shows the address that tried. Matching
+ignores case and whitespace but not Gmail dots — `j.perez@` and `jperez@` are
+distinct entries.
+
+### Everyone is signed out after every deploy
+
+`session.secret` is unset, so a new random key is generated at each start (the
+startup log warns about it). Set a fixed value to keep sessions across
+deployments.
+
+### The login page loads but signing in never completes
+
+Over plain HTTP the cookies are dropped: the session cookie is `Secure` and the
+OAuth state cookie uses the `__Host-` prefix, which browsers refuse without
+HTTPS. For local testing set `session.secure: false`; never in production.
+
+### A widget card shows the login page
+
+HTMX requests are answered with `401` + `HX-Redirect`, never login HTML, so
+this means the request reached the gate without the `HX-Request: true` header —
+check any custom JavaScript that issues it.

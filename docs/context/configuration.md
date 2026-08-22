@@ -276,8 +276,9 @@ scripts:
 | `HOMEPAGE_SCRIPTS_ENABLED` | `false` | Enable the scripts feature. |
 | `HOMEPAGE_ALLOW_PRIVATE_HOSTS` | `true` | Allow proxy to reach RFC1918 IPs and loopback. |
 | `HOMEPAGE_PROXY_DISABLE_IPV6` | `false` | Force IPv4 in the proxy. |
-| `HOMEPAGE_ENABLE_HSTS` | `false` | Add `Strict-Transport-Security` (HTTPS-only). |
-| `HOMEPAGE_TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | CIDRs trusted for `X-Forwarded-For` parsing. |
+| `HOMEPAGE_HSTS` | `false` | Add `Strict-Transport-Security` (HTTPS-only). |
+| `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | CIDRs trusted for `X-Forwarded-For` parsing, and for the `trustedHeader` auth provider. |
+| `HOMEPAGE_AUTH_REQUIRED` | `false` | `true` refuses to start without an email allowlist and answers 503 whenever the auth policy is unavailable. See [`authentication.md`](./authentication.md). |
 | `HOMEPAGE_VAR_*` | — | Custom values. Used as `{{HOMEPAGE_VAR_X}}` in YAML. |
 | `HOMEPAGE_FILE_*` | — | File paths. `{{HOMEPAGE_FILE_X}}` is replaced with file contents. |
 | `TZ` | — | Timezone (used by `datetime` and scripts). |
@@ -393,7 +394,7 @@ Endpoint: `GET /api/widgets/resources?cpu=true&cputemp=true&uptime=true&label=CP
 ## Service widgets
 
 Widgets declared under a service's `widget:` field render inside the card
-via HTMX. 160+ widget types ship in the binary
+via HTMX. 46 widget types ship in the binary
 (`internal/widgets/registry.go`).
 
 ### `customapi`

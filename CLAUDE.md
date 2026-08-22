@@ -43,7 +43,7 @@ make up | down | logs   # docker compose wrappers
 | `internal/config` | YAML loaders, env substitution, fsnotify watcher, in-memory cache. | No dependency on other internal packages — it is the foundation. Hash in `atomic.Value`. |
 | `internal/handlers` | HTTP handlers. | Content negotiation via `HX-Request` header: HTML (Templ) for HTMX, JSON for API clients. |
 | `internal/templates` | Templ sources + `*_templ.go` (committed) + helpers (`urls.go`, `icons.go`, `styles.go`, `layout.go`, `format.go`) + `i18n.go`. | |
-| `internal/widgets` | Declarative registry (160+ entries) + `BaseWidget` + interfaces. | `GenericProxyHandler` reads `APITemplate()` and `Mappings()` from the registry at request time. |
+| `internal/widgets` | Declarative registry (46 widget types + 4 aliases) + `BaseWidget` + interfaces. | `GenericProxyHandler` reads `APITemplate()` and `Mappings()` from the registry at request time. |
 | `internal/auth` | Optional email allowlist: session cookie (HMAC), Google OAuth, `trustedHeader` provider. Stdlib only. | Depends on `internal/config` and nothing else, so `internal/middleware` can import it without a cycle. |
 | `internal/proxy` | Secure HTTP proxy. SSRF guard, transport pool, gzip/zlib decompression, `file://` scheme, TTL cache. | `scrubError()` sanitizes credentials in error strings. |
 | `internal/scripts` | Opt-in script execution. | Strong sandboxing. Hot-reloaded by the config watcher via `Manager.ReplaceAll`. |
@@ -154,6 +154,8 @@ make up | down | logs   # docker compose wrappers
   generic IdP) reinstates the need for JWKS.
 - `auth.yaml` has **no skeleton** in `internal/config/skeleton/`: the file must
   stay absent by default, since its content is what turns login on.
+- User-facing docs: `docs/context/authentication.md` (schema, setup, flow) and
+  `docs/context/troubleshooting.md` §Authentication (symptom-first).
 
 ### Security model
 
@@ -169,7 +171,7 @@ make up | down | logs   # docker compose wrappers
   execution; 1/min on `/api/hash` and `/api/reload`.
 - Security headers globally: CSP (`script-src 'self' unpkg.com cdn.jsdelivr.net`),
   `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
-  `X-Content-Type-Options: nosniff`. HSTS opt-in via `HOMEPAGE_ENABLE_HSTS`.
+  `X-Content-Type-Options: nosniff`. HSTS opt-in via `HOMEPAGE_HSTS`.
 - SSRF: `proxy.Proxy` resolves DNS, blocks cloud-metadata IPs always, and
   blocks RFC1918 + loopback unless `HOMEPAGE_ALLOW_PRIVATE_HOSTS=true`
   (default `true`, since the dominant use case is self-hosted).
@@ -220,8 +222,8 @@ make up | down | logs   # docker compose wrappers
   - `/var/run/docker.sock` — Docker stats + script wrappers (mount `:ro` if
     scripts don't need to mutate containers).
 - Key env: `HOMEPAGE_ALLOWED_HOSTS`, `HOMEPAGE_SCRIPTS_ENABLED`,
-  `HOMEPAGE_ALLOW_PRIVATE_HOSTS`, `HOMEPAGE_ENABLE_HSTS`,
-  `HOMEPAGE_TRUSTED_PROXIES`, `HOMEPAGE_PROXY_DISABLE_IPV6`, `TZ`. See
+  `HOMEPAGE_ALLOW_PRIVATE_HOSTS`, `HOMEPAGE_HSTS`,
+  `TRUSTED_PROXIES`, `HOMEPAGE_PROXY_DISABLE_IPV6`, `TZ`. See
   `README.md` for the full table.
 
 ---

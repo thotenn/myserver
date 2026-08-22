@@ -293,7 +293,7 @@ echo "Backup complete"
 ```
 HOMEPAGE_ALLOWED_HOSTS=dash.example.com,localhost:3000
 HOMEPAGE_SCRIPTS_ENABLED=true
-HOMEPAGE_ENABLE_HSTS=true
+HOMEPAGE_HSTS=true
 TZ=Etc/UTC
 HOMEPAGE_VAR_PLEX_TOKEN=…
 HOMEPAGE_VAR_SONARR_KEY=…
@@ -691,9 +691,14 @@ today. Prefer the `search:` widget for new configs.
    `find config/scripts -type f -perm -002`.
 8. **Don't override the env denylist** (`LD_PRELOAD`, `PATH`, `BASH_ENV`, …) —
    registration will reject the script.
-9. **Enable HSTS** when serving over HTTPS: `HOMEPAGE_ENABLE_HSTS=true`.
-10. **Treat the dashboard as unauthenticated** — put it behind Cloudflare
-    Access / oauth2-proxy / Authelia.
+9. **Enable HSTS** when serving over HTTPS: `HOMEPAGE_HSTS=true`.
+10. **Never leave a production dashboard unguarded.** Either put it behind an
+    external layer (Cloudflare Access / oauth2-proxy / Authelia) or enable the
+    built-in email allowlist — see `guides/allowlist.md`. The dashboard is
+    public by default and every `/api/*` endpoint is reachable with it.
+11. **Going back to public means emptying the allowlist**, never deleting
+    `auth.yaml`. A file that disappears while sign-in is active answers 503 on
+    everything, by design.
 
 ---
 
@@ -709,6 +714,7 @@ Copy-paste YAML snippets under `templates/` (one file per `config/` YAML):
 | `templates/scripts.yaml`   | 15 script definitions |
 | `templates/settings.yaml`  | 15 settings configurations |
 | `templates/docker.yaml`    | 10 Docker / Podman server definitions |
+| `templates/auth.yaml`      | 7 email-allowlist configurations (login) |
 
 Feature deep dives under `guides/`:
 
@@ -716,6 +722,7 @@ Feature deep dives under `guides/`:
 |---|---|
 | `guides/customapi.md`   | `customapi` widget — mappings, display modes, field paths |
 | `guides/file-scheme.md` | `file://` data sources — patterns and recipes |
+| `guides/allowlist.md`   | Email allowlist — Google OAuth setup, adding/removing people, troubleshooting |
 
 Shell-script templates under `scripts/`:
 

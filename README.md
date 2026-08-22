@@ -16,7 +16,7 @@
 | ⚡ **Lightweight** | ~10–30 MiB RAM at runtime, single static binary, no Node.js at build or runtime. |
 | 🧩 **Zero-code customization** | Everything lives in `config/` — YAMLs, scripts, local JSON. Edit on the host, save, the dashboard hot-reloads. |
 | 🛡️ **Secure by default** | CSP, HostValidation, per-IP rate limits, SSRF guard, credential sanitization, sandboxed scripts. |
-| 🔌 **160+ built-in widgets** | Sonarr, Radarr, Plex, Pi-hole, Proxmox, Portainer, … plus a `customapi` for anything else. |
+| 🔌 **46 built-in widget types** | Sonarr, Radarr, Plex, Pi-hole, Proxmox, Portainer, … plus a `customapi` for anything else. |
 | 🐳 **Container-aware** | Auto-discovery via Docker labels, live CPU/MEM/network stats, status badges, Swarm support. |
 | 🌐 **No JS framework** | HTMX over server-rendered HTML. The dashboard works without a build pipeline. |
 
@@ -48,7 +48,7 @@
 
 ### Widgets & data sources
 
-- **160+ pre-registered widgets** (Sonarr, Radarr, Plex, Jellyfin, Pi-hole,
+- **46 pre-registered widget types** (Sonarr, Radarr, Plex, Jellyfin, Pi-hole,
   Traefik, Proxmox, Portainer, Uptime Kuma, …).
 - `customapi` widget for any JSON API, with display modes `text`, `list`,
   `dynamic-list`, `graph`, `tile`, field-path traversal, and format helpers

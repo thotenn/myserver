@@ -18,6 +18,11 @@
 | `ReadConfigFile(filename) ([]byte, error)` | `config.go` | Reads file + applies `SubstituteEnvVars()`. |
 | `ConfigHash() (string, error)` | `config.go` | SHA256 of all YAMLs + custom.css + custom.js. Truncated to 16 chars. Used for cache busting. |
 | `CurrentHash() string` | `config.go` | Reads current hash from `atomic.Value`. Thread-safe. |
+| `Auth() AuthState` | `auth.go` | Current auth policy. Never returns nil; before the first load it reports lockdown rather than claiming the dashboard is public. Read per request. |
+| `ReloadAuth()` | `auth.go` | Re-reads `auth.yaml` and publishes the policy. Called by `ReloadCache`. Keeps the last known good policy on failure — never degrades to "public". |
+| `ValidateAuthConfig(cfg) error` | `auth.go` | Rejects missing credentials, unresolved `{{HOMEPAGE_VAR_*}}` placeholders, bad `maxAge`, unknown providers, and public mail domains without `allowPublicDomains`. |
+| `AuthRequiredEnv() bool` | `auth.go` | `HOMEPAGE_AUTH_REQUIRED=true` — fail closed even when no allowlist is configured. |
+| `ResetAuthState()` / `ResetCache()` | `auth.go`, `cache.go` | Test helpers. Production never calls them. |
 | `SetCurrentHash(h)` | `config.go` | Stores hash in `atomic.Value`. Called by the watcher. |
 
 ### Env Var Substitution
@@ -241,6 +246,25 @@
 
 ---
 
+## `internal/auth` — Email Allowlist and Providers
+
+Depends only on `internal/config`, so `internal/middleware` can import it for
+the gate without a dependency cycle.
+
+| Function | File | Description |
+|----------|------|-------------|
+| `IsAllowed(cfg, email) bool` | `allowlist.go` | Matches an address against `emails` + `domains`. Case-insensitive, whitespace-trimmed. Deliberately does **not** fold Gmail dots. Called on every request, not just at login. |
+| `NormalizeEmail(email) string` | `allowlist.go` | Lower-case + trim. |
+| `IssueSession(w, cfg, email) error` | `session.go` | Writes the signed cookie: `HttpOnly`, `SameSite=Lax`, `Secure` by default. |
+| `ReadSession(r, cfg) (*Session, error)` | `session.go` | Verifies signature (`hmac.Equal`, constant time) and expiry. |
+| `MaybeRenewSession(w, cfg, s)` | `session.go` | Re-issues the cookie once less than half its life remains (sliding renewal). |
+| `ClearSession(w, cfg)` | `session.go` | Expires the cookie (logout). |
+| `AuthorizationURL(cfg, state, nonce) string` | `google.go` | Builds the Google redirect. `scope=openid email`, `prompt=select_account`, optional `hd=`. |
+| `ExchangeCode(ctx, cfg, code, nonce) (string, error)` | `google.go` | Server-to-server token exchange, then validates `iss`/`aud`/`exp`/`nonce`/`email_verified` and returns the address. Signature is intentionally unverified — direct TLS from the token endpoint, per OIDC Core §3.1.3.7(6). |
+| `EmailFromTrustedHeader(r, cfg, peerTrusted) (string, error)` | `trustedheader.go` | Reads the identity a front proxy asserts. Returns an error unless `peerTrusted` — the caller (middleware) is the only layer that can see the peer. |
+
+---
+
 ## `internal/middleware` — HTTP Middleware
 
 | Function | File | Description |
@@ -249,6 +273,10 @@
 | `Logging(logger) func(http.Handler) http.Handler` | `logging.go` | Logs method, path, duration, remote addr. Debug level. |
 | `CORS(next) http.Handler` | `cors.go` | Strict same-origin CORS. Only for `/api/*`. Preflight OPTIONS → 204. Allowed headers: Content-Type, X-Homepage-Confirm, HX-Request, HX-Current-URL. |
 | `HostValidation(port, logger) func(http.Handler) http.Handler` | `host_validation.go` | Validates Host header. Defaults: localhost:PORT, 127.0.0.1:PORT, [::1]:PORT. `*` = allow all. Port-aware. Case-insensitive. |
+| `Auth(logger) func(http.Handler) http.Handler` | `auth.go` | The email-allowlist gate. Reads `config.Auth()` **per request** (never captured in the closure) so the policy is hot-reloadable. No-op when no allowlist is configured. |
+| `SessionEmail(ctx) string` | `auth.go` | Returns the authenticated address attached to the request, `""` when auth is off. The hook for per-item permissions later. |
+| `PeerIsTrusted(r) bool` | `helpers.go` | Whether the immediate peer is in `TRUSTED_PROXIES`. Gates the `trustedHeader` provider. |
+| `ClientIPFromRequest(r) string` | `helpers.go` | Real client IP. Honours `X-Forwarded-For` / `X-Real-IP` only when the peer is a trusted proxy. |
 
 ---
 
@@ -256,4 +284,6 @@
 
 | Function | File | Description |
 |----------|------|-------------|
-| `main()` | `main.go` | Order: 1) init logger, 2) ensure config dir, 3) RegisterBuiltinWidgets, 4) compute initial hash, 5) start config watcher, 6) init script manager (opt-in), 7) build router, 8) start server, 9) graceful shutdown with 10s timeout. |
+| `main()` | `main.go` | Order: 1) init logger, 2) ensure config dir + load cache, 3) `initAuth` (fatal on a broken auth policy), 4) RegisterBuiltinWidgets, 5) docker discoverers, 6) init script manager (opt-in), 7) start config watcher, 8) build router, 9) start server, 10) graceful shutdown with 10s timeout. |
+| `initAuth(logger)` | `main.go` | Reports the auth policy at startup and refuses to run with a broken one. **The only place that may be fatal** — once serving, a bad edit keeps the last known good policy instead. |
+| `logAuthReload(logger)` | `main.go` | After each hot-reload, logs whether the policy is active, degraded (kept last known good) or in lockdown. |

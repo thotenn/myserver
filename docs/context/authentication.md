@@ -46,6 +46,79 @@ allowlist, and answers 503 if the policy is ever unavailable.
 
 ---
 
+## Setting it up
+
+### 1. Create the OAuth client
+
+In the [Google Cloud console](https://console.cloud.google.com/apis/credentials),
+create an **OAuth client ID** of type **Web application**, and register the
+callback under *Authorized redirect URIs*:
+
+```
+https://dashboard.example.com/auth/google/callback
+```
+
+That path is `/auth/google/callback` — three segments, separated by slashes.
+Google matches the URI **character for character**, so a typo here (a dot
+instead of a slash, a trailing slash, `http` instead of `https`, a different
+host) fails with `redirect_uri_mismatch` before the consent screen appears.
+
+*Authorized JavaScript origins* can be left empty: this flow is a plain
+server-side redirect and never runs Google's JavaScript SDK.
+
+If the consent screen is still in *Testing*, add the addresses you intend to
+allow as test users, or Google refuses them before MyServer ever sees them.
+
+### 2. Put the credentials in the environment
+
+```bash
+HOMEPAGE_VAR_GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET=GOCSPX-…
+```
+
+With Compose, a variable set on the host does **not** reach the container
+unless the service names it. `docker-compose.yml` already declares both under
+`environment:` with no value, which is what forwards them:
+
+```yaml
+    environment:
+      - HOMEPAGE_VAR_GOOGLE_CLIENT_ID
+      - HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET
+```
+
+The same applies on a PaaS: setting the variables in its UI populates the
+environment of the *deployment*, and the Compose file is what passes them
+through to the container.
+
+### 3. Write `config/auth.yaml`
+
+```yaml
+allowlist:
+  emails:
+    - you@example.com
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+```
+
+No restart is needed — the file is picked up on the next request.
+
+> **Order matters: variables first, file second.** An `auth.yaml` whose
+> placeholders cannot be resolved refuses to start, so writing the file before
+> the environment is ready puts the container in a restart loop. That is
+> deliberate (a half-configured login must not run), but it is easier to avoid
+> than to diagnose.
+
+Confirm the credentials actually arrived before writing the file:
+
+```bash
+docker exec <container> printenv | grep HOMEPAGE_VAR_GOOGLE
+```
+
+---
+
 ## Schema
 
 ```yaml
@@ -248,6 +321,88 @@ per request rather than captured at startup. Consequences:
 | `HOMEPAGE_VAR_*` | Substituted into `auth.yaml`. Use for the client id, the secret and the session key. |
 | `HOMEPAGE_AUTH_REQUIRED` | `true` refuses to start without an allowlist and answers 503 whenever the policy is unavailable. |
 | `TRUSTED_PROXIES` | CIDR list whose members may assert identity headers (`trustedHeader`) and forwarded IPs. |
+
+---
+
+## Troubleshooting
+
+The same entries, in symptom-first order, live in
+[`troubleshooting.md`](./troubleshooting.md#authentication-email-allowlist).
+
+### `redirect_uri_mismatch` from Google
+
+The `redirectURL` in `auth.yaml` and the *Authorized redirect URI* in the
+Google console are not identical. Compare them character by character:
+`/auth/google/callback` (slashes, not dots), same scheme, same host, no
+trailing slash. Changes in the Google console can take a few minutes to apply.
+
+### Everything answers 503
+
+The auth policy could not be read. This is the deliberate failure mode — a
+config MyServer cannot parse never degrades to a public dashboard. Look at the
+log for the reason:
+
+```bash
+docker logs <container> 2>&1 | grep -i auth
+```
+
+The usual causes are a YAML syntax error in `auth.yaml`, the file having
+disappeared (a bind mount that did not come up), or a first-ever policy that
+fails validation. Fix the file and the next request recovers; no restart
+needed.
+
+### The container restarts in a loop
+
+Startup validation failed. The log line names the field:
+
+```
+authentication is configured but unusable; refusing to start
+google.clientId still holds an unresolved placeholder — is the environment variable set?
+```
+
+The environment variables did not reach the container. See step 2 above — on
+Compose, they must be declared under `environment:`. To get the dashboard back
+immediately, empty the allowlist (`emails: []`) rather than deleting the file.
+
+### Sign-in works but the dashboard answers 403
+
+The account authenticated with Google but is not on the allowlist. That is the
+feature working. The log records the attempt:
+
+```
+access denied: email not in allowlist  {"email": "...", "ip": "..."}
+```
+
+Check for a typo in `allowlist.emails`. Matching ignores case and surrounding
+whitespace, but **not** Gmail's dots: `j.perez@gmail.com` and
+`jperez@gmail.com` are the same mailbox to Google and different entries here.
+
+### Everyone is signed out after each deploy
+
+`session.secret` is unset, so a random key is generated at every start. The
+log says so at startup. Set it to a fixed value — via `{{HOMEPAGE_VAR_…}}`, or
+generated once and stored outside `auth.yaml` so that regenerating the config
+does not rotate it.
+
+### The login page loads but signing in never completes
+
+Over plain HTTP the session cookie is dropped: it is `Secure` by default, and
+the OAuth state cookie uses the `__Host-` prefix, which browsers refuse
+without HTTPS. For local testing over `http://localhost`, set
+`session.secure: false` — never in production.
+
+### Removing someone did not lock them out
+
+It should, on their very next request: the allowlist is re-checked per
+request, not just at login. If it did not, the file was probably not parsed —
+check the log for a retained "last known good" policy, which means your edit
+was rejected and the previous allowlist is still in force.
+
+### A widget shows the login page inside its card
+
+That should not happen: HTMX requests get `401` + `HX-Redirect` instead of
+login HTML. If you see it, the request is reaching the gate without the
+`HX-Request: true` header — check any custom JavaScript issuing it.
 
 ---
 

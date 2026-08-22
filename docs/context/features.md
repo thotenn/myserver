@@ -25,7 +25,7 @@
 
 ---
 
-## 2. Services & Widgets (160+ types)
+## 2. Services & Widgets (46 types)
 
 ### Widget Registry
 
@@ -227,7 +227,7 @@ See `workflow.md` for details. Summary:
 
 | Layer | Implementation |
 |-------|---------------|
-| **Auth** | No built-in auth. Must be provided by a reverse proxy or external access layer in front of the application. |
+| **Auth** | Public by default; an external layer in front is the usual setup. Optional built-in email allowlist with Google sign-in — see §16. |
 | **Host Validation** | `HOMEPAGE_ALLOWED_HOSTS`. Default: localhost only. `*` = allow all. Port-aware. |
 | **CORS** | Same-origin only. Applied only to `/api/*`. Reflects `Origin` only if it matches `Host`. |
 | **SSRF Guard** | `proxy.Proxy` blocks cloud-metadata IPs and RFC1918 by default. `HOMEPAGE_ALLOW_PRIVATE_HOSTS=true` to opt out (default true for self-hosted). |
@@ -264,7 +264,33 @@ See `workflow.md` for details. Summary:
 
 ---
 
-## 16. Known Issues / Real Blockers
+## 16. Email Allowlist (opt-in login)
+
+Optional. A `config/auth.yaml` listing at least one address makes Google sign-in
+mandatory for the whole dashboard; no file (or an empty list) leaves everything
+public and byte-for-byte unchanged. There is no `enabled` flag — **the allowlist
+is the switch**.
+
+| Aspect | Behaviour |
+|---|---|
+| **Providers** | `google` (OAuth 2.0 Authorization Code) or `trustedHeader` (identity asserted by a proxy already doing SSO, honoured only when the peer is in `TRUSTED_PROXIES`) |
+| **Dependencies** | None. The ID Token arrives over direct TLS from the token endpoint — the case OIDC Core §3.1.3.7(6) covers — so `iss`/`aud`/`exp`/`nonce`/`email_verified` are validated without JWKS or a JWT library |
+| **Session** | Stateless: `email \| expiry \| nonce` signed with HMAC-SHA256. `HttpOnly` (mandatory — `custom.js` is operator JS on the same page), `SameSite=Lax`, `Secure`, sliding renewal past half-life |
+| **Coverage** | Allowlist of public paths, not a denylist: `/static/*`, `/auth/*`, `/api/healthcheck` and `publicPaths` are open; everything else needs a session, including the widget proxy and the scripts endpoints |
+| **Responses** | `302` for navigation · `401` + `HX-Redirect` for HTMX (so a polling widget never paints a login form inside its card) · `401` JSON for API clients · `403` for an authenticated address that is not listed |
+| **Hot-reload** | The policy is read per request. Adding an address grants access on the next request; removing one evicts that person immediately, not when their cookie expires |
+| **Fail-closed** | A broken `auth.yaml` keeps the last known good allowlist; one that vanishes while sign-in is active locks down with 503. Only a well-formed, empty allowlist opens the dashboard. Bad config at startup is fatal; on hot-reload it never is |
+| **Guard rails** | Public mail providers under `domains:` are rejected at startup unless `allowPublicDomains: true`; `redirectURL` is explicit and never derived from the `Host` header |
+
+**Implementation:** `internal/config/auth.go` (policy), `internal/auth/` (allowlist,
+session, providers), `internal/middleware/auth.go` (the gate),
+`internal/handlers/auth.go` (endpoints), `internal/templates/login.templ`.
+
+**Docs:** [`authentication.md`](./authentication.md).
+
+---
+
+## 17. Known Issues / Real Blockers
 
 1. ~~Real `customapi` widget~~ — **DONE** (v1.2.0)
 2. ~~Wire `MergeServices` + `DockerDiscoverer`~~ — **DONE** (v1.2.0)

@@ -48,14 +48,39 @@ the deployment environment.
    TZ=Etc/UTC
    HOMEPAGE_ALLOWED_HOSTS=dashboard.example.com,dashboard.example.com:443
    HOMEPAGE_SCRIPTS_ENABLED=true                   # optional
+
+   # Only if you enable the built-in email allowlist (step 7)
+   HOMEPAGE_VAR_GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+   HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET=GOCSPX-…
    ```
 
    `HOMEPAGE_ALLOWED_HOSTS` is not wildcarded by default: if you leave it
    unset, only localhost is accepted and your public hostname returns 400.
 
-6. Point your reverse proxy / tunnel at the published port, and **put an auth
-   layer in front of it** — the dashboard has no internal auth (see
-   [Security model](../../README.md#security-model-in-one-paragraph)).
+   Compose does not forward a host variable to the container unless the
+   service names it under `environment:`. `docker-compose.yml` already
+   declares the two Google variables with no value for exactly this reason;
+   the same applies on a PaaS, where its environment UI populates the
+   deployment and the Compose file passes it through.
+
+6. Point your reverse proxy / tunnel at the published port.
+
+7. **Decide who can see the dashboard.** It is public by default, so it needs
+   one of:
+
+   - an auth layer in front (Cloudflare Access, Authelia, oauth2-proxy,
+     Tailscale…), or
+   - the built-in email allowlist: drop a `config/auth.yaml` listing the
+     addresses allowed in, and Google sign-in becomes mandatory. Full setup in
+     [`authentication.md`](./authentication.md).
+
+   > **Set the environment variables before writing `auth.yaml`.** A file whose
+   > `{{HOMEPAGE_VAR_*}}` placeholders cannot be resolved makes the process
+   > refuse to start, so the wrong order gives you a restart loop. Verify with
+   > `docker exec <container> printenv | grep HOMEPAGE_VAR_GOOGLE`.
+   >
+   > To go back to public later, empty the allowlist (`emails: []`) — do not
+   > delete the file, which answers 503 on everything by design.
 
 > **You never need to shell into the container.** The config directory is a
 > host bind mount; edit on the host and `fsnotify` reloads inside the

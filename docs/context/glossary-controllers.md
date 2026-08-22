@@ -11,9 +11,28 @@
 | **Recovery** | `internal/middleware/recovery.go` | Recovers from panics, logs stack trace, returns generic 500. Adapts format (JSON/HTML/text) based on Content-Type. |
 | **Logging** | `internal/middleware/logging.go` | Logs each request with zap: method, path, duration, remote addr. Debug level. |
 | **RateLimit** | `internal/middleware/rate_limit.go` | Token bucket rate limiter per IP. Default: 60 req/min for most routes, 10 req/min for script execution. Returns 429 with `Retry-After`. |
-| **SecurityHeaders** | `internal/middleware/security_headers.go` | Adds CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy. Optional HSTS via `HOMEPAGE_ENABLE_HSTS`. |
+| **SecurityHeaders** | `internal/middleware/security_headers.go` | Adds CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy. Optional HSTS via `HOMEPAGE_HSTS`. |
 | **CORS** | `internal/middleware/cors.go` | Strict same-origin CORS. Only applies to `/api/*`. Reflects `Origin` only if it matches `Host`. Responds OPTIONS 204. |
 | **HostValidation** | `internal/middleware/host_validation.go` | Validates `Host` header against `HOMEPAGE_ALLOWED_HOSTS`. Default: localhost only. Port-aware. `*` = allow all. |
+| **Auth** | `internal/middleware/auth.go` | The email-allowlist gate, global. A no-op (single bool check) while `config/auth.yaml` lists nobody. With an allowlist: everything requires a session except `/static/*`, `/auth/*`, `/api/healthcheck` and `publicPaths`. Answers `302` / `401`+`HX-Redirect` / `401` JSON by request type, `403` for an authenticated address that is not listed, and `503` when the policy cannot be read. Reads the policy **per request** so edits to the YAML take effect immediately. |
+
+---
+
+## Auth Routes (`/auth/*`)
+
+Registered unconditionally, but every handler answers `404` while the allowlist
+is empty — byte-for-byte what chi returns for an unknown route. Registering them
+conditionally would lock the operator out when they enable auth by editing the
+YAML, since the gate arms live but the login page would not exist until a
+restart. All live in `internal/handlers/auth.go`.
+
+| Route | Function | Behaviour |
+|---|---|---|
+| `GET /auth/login` | `AuthLogin` | Minimal Templ page with a "Sign in with Google" link. Redirects to `/` if a valid session already exists. Does not load `custom.css` (operator content sits behind the gate). |
+| `GET /auth/denied` | `AuthDenied` | `403` page for an address that authenticated but is not on the allowlist. |
+| `GET /auth/google/start` | `AuthGoogleStart` | Generates `state` + `nonce` (32 bytes each, `crypto/rand`), stores them in a 10-minute `__Host-` cookie, redirects to Google. Rate limit 1/s. |
+| `GET /auth/google/callback` | `AuthGoogleCallback` | Constant-time `state` comparison, server-to-server code exchange, claim validation, allowlist check, session cookie. Rate limit 1/s. |
+| `POST /auth/logout` | `AuthLogout` | Clears the session cookie. POST on purpose: a GET logout can be triggered by any image tag. |
 
 ---
 

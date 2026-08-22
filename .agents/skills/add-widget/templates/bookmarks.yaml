@@ -126,7 +126,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 - Tools:
     - Terminal:
-        abbr: >_
+        abbr: ">_"          # quoted: a bare > starts a YAML block scalar
         href: https://terminal.example.com
         icon: mdi:console
 

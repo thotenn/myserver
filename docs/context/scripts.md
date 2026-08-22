@@ -242,6 +242,28 @@ exec python3 backup_manager.py --auto --mode "${BACKUP_MODE:-filesystem}"
 
 ---
 
+## Scripts behind the auth gate
+
+If `config/auth.yaml` lists an email allowlist, `/api/scripts/*` requires a
+session like everything else — it is one of the endpoints the gate exists to
+protect, since it runs shell commands.
+
+Consequences worth planning for:
+
+- **Anonymous automation stops working.** There are no API tokens; a caller
+  needs a session cookie. A cron job or webhook that used to `POST
+  /api/scripts/<name>` gets `401`.
+- **Running a script from the dashboard is unaffected** — the browser already
+  carries the session.
+- If a script really must be triggerable without a login, the options are an
+  entry in `publicPaths` (which opens that path to everyone who can reach the
+  port — rarely a good idea for shell execution), or triggering it outside
+  MyServer entirely.
+
+See [`authentication.md`](./authentication.md).
+
+---
+
 ## Hot-reload caveat
 
 `scripts.yaml` entries are hot-reloaded — the watcher calls

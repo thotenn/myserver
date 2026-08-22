@@ -53,6 +53,34 @@ extension, not a compatibility break: Homepage never reads that file.
 - Docs: [`docs/context/authentication.md`](docs/context/authentication.md), plus
   a README section and `/auth/*` in the API reference.
 
+### Fixed — documented environment variables that did not exist
+
+Two variables were documented under names the code never reads. Anyone who
+configured them by following the docs got silent no-ops:
+
+- **`HOMEPAGE_ENABLE_HSTS` → `HOMEPAGE_HSTS`.** Setting the documented name did
+  nothing, so deployments believed HSTS was on when the header was never sent.
+- **`HOMEPAGE_TRUSTED_PROXIES` → `TRUSTED_PROXIES`.** Setting the documented
+  name left the default `127.0.0.1/8,::1/128` in force, so `X-Forwarded-For`
+  was ignored and per-IP rate limiting bucketed every request under the
+  proxy's address. With the new `trustedHeader` auth provider it would also
+  reject every request.
+
+The code was already correct and the names are unchanged; only the docs were
+wrong (README, `CLAUDE.md`, four files under `docs/context/`, and the
+`add-widget` skill). **Check your deployment for the old names.**
+
+Also fixed:
+
+- `templates/bookmarks.yaml` in the `add-widget` skill was not valid YAML
+  (`abbr: >_` — a bare `>` opens a block scalar), so copying that template
+  broke the user's config.
+- The docs claimed **160+ built-in widgets**. The registry holds **46 widget
+  types, 50 endpoint mappings and 4 aliases** (counted by running
+  `Registry.List()`); the inflated figure appears to have been inherited from
+  the original Homepage project. Corrected in the README, the architecture
+  diagram, the configuration reference and the skill.
+
 ### Fixed — `/api/services` credential leak and shared-slice data race
 
 - **Basic-auth in `href` / `siteMonitor` was returned verbatim**

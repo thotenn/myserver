@@ -31,21 +31,26 @@
 └─────────────────────────┬───────────────────────────────────┘
                           │
           ┌───────────────┴───────────────┐
-          │     Reverse Proxy / Auth      │
-          │     (External layer)          │
+          │  Reverse Proxy / external auth │
+          │  (optional — see the gate below)│
           └───────────────┬───────────────┘
                           │
 ┌─────────────────────────┴───────────────────────────────────┐
 │                    MyServer (Go)                             │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  chi.Router                                         │   │
-│  │  ├── Global MW: Recovery → Logging                  │   │
-│  │  ├── API Routes (/api/*): RateLimit → SecurityHdr   │   │
-│  │  │                       → CORS → HostValidation      │   │
-│  │  ├── Static Files (/static/*)                       │   │
+│  │  ├── Global MW: Recovery → Logging → SecurityHdr    │   │
+│  │  │               → Auth gate → Compress             │   │
+│  │  ├── API Routes (/api/*): CORS → HostValidation     │   │
+│  │  │                       → RateLimit                │   │
+│  │  ├── Static Files (/static/*)        [public]       │   │
+│  │  ├── Auth (/auth/*)                  [public]       │   │
 │  │  ├── Dashboard (GET /)                              │   │
 │  │  └── Config Files (GET /api/config/*)               │   │
 │  └─────────────────────────────────────────────────────┘   │
+│   The Auth gate is a no-op while config/auth.yaml lists     │
+│   nobody; with an allowlist it guards everything except     │
+│   /static/*, /auth/* and /api/healthcheck.                  │
 │                          │                                 │
 │  ┌───────────────────────┼───────────────────────────────┐  │
 │  │                       │                               │  │
@@ -68,7 +73,7 @@
 │  │  │  · JSON-RPC  │    ┌────────────────────────┘      │  │
 │  │  │  · Credentialed│   │                              │  │
 │  │  └──────────────┘   │   ┌────────────────────┐      │  │
-│  │                      └──►│ 160+ Widgets       │      │  │
+│  │                      └──►│ 46 Widget types    │      │  │
 │  │                          │  · customapi        │      │  │
 │  │  ┌──────────────┐        │  · plex, jellyfin   │      │  │
 │  │  │  Discovery   │        │  · sonarr, radarr   │      │  │
@@ -182,6 +187,40 @@
 
 ---
 
+## 5b. Data Flow: Sign-In (when an allowlist is configured)
+
+```
+1.  Browser GET / (no session cookie)
+2.  middleware.Auth() reads config.Auth() — per request, never a closure
+3.    ├─ Lockdown?      → 503 everywhere except /api/healthcheck
+4.    ├─ Not required?  → next handler, untouched (the public default)
+5.    ├─ Public path?   → next handler (/static/*, /auth/*, healthcheck)
+6.    └─ Otherwise → authenticate()
+7.         ├─ provider google        → auth.ReadSession() (HMAC cookie)
+8.         └─ provider trustedHeader → auth.EmailFromTrustedHeader()
+9.                                     (only if PeerIsTrusted)
+10.  No identity → challenge()
+11.    ├─ HX-Request: true → 401 + HX-Redirect: /auth/login
+12.    ├─ JSON client      → 401 {"error":"unauthorized"}
+13.    └─ Navigation       → 302 /auth/login?next=…
+14.  Identity → auth.IsAllowed() re-checked on EVERY request
+15.    ├─ No  → 403 (a valid cookie is not a standing permission)
+16.    └─ Yes → context carries the email; next handler
+
+── The OAuth round trip ──────────────────────────────────────
+17.  GET /auth/google/start
+18.    ├─ crypto/rand state + nonce → __Host- cookie (10 min)
+19.    └─ 302 accounts.google.com  (scope=openid email)
+20.  GET /auth/google/callback
+21.    ├─ state compared in constant time, cookie consumed
+22.    ├─ POST oauth2.googleapis.com/token   (server to server, TLS)
+23.    ├─ validate iss / aud / exp / nonce / email_verified
+24.    ├─ IsAllowed(email)?  no → 302 /auth/denied, NO cookie issued
+25.    └─ yes → HMAC session cookie → 302 to the validated `next`
+```
+
+---
+
 ## 6. Key Design Decisions
 
 ### A. In-Memory Config Cache
@@ -208,13 +247,17 @@ Instead of separate routes `/api/X` and `/htmx/X`, a single endpoint decides the
 - Only `.sh` allowed
 - **Hot-reload**: `scripts.yaml` changes trigger `Manager.ReplaceAll()` automatically via the config watcher
 
-### E. No Internal Auth
+### E. Auth: Public by Default, Opt-In Allowlist
 
-The project assumes there is an auth layer in front (reverse proxy). It does not implement Authentik, Authelia, etc.
+The dashboard ships public and expects an auth layer in front (reverse proxy, Cloudflare Access, Authelia…). Since the email-allowlist feature it can also guard itself: a `config/auth.yaml` listing at least one address makes Google sign-in mandatory. There is no user database and no local passwords — identity always comes from an external provider (Google, or a header asserted by a trusted proxy).
+
+The decisive property is what happens when that config cannot be read. `AuthConfig` lives in its **own** `atomic.Value`, not inside `cachedConfig`, because `ReloadCache` discards loader errors (`c.Settings, _ = loadSettings()`) — a policy that silently became `nil` would publish the dashboard. Instead: a broken file keeps the last known good allowlist, and a file that vanishes while sign-in is active locks everything down with 503. The only thing that opens the dashboard is a well-formed file with an empty allowlist.
+
+See [`authentication.md`](./authentication.md).
 
 ### F. In-Memory Widget Registry
 
-160+ widgets are registered in a `map[string]Widget` at startup. `GenericProxyHandler` queries the registry for `APITemplate()` and `Mappings()` to build requests dynamically. Widgets are lightweight definitions (API template + endpoint mappings), not heavy instances.
+46 widget types (plus 4 aliases) are registered in a `map[string]Widget` at startup. `GenericProxyHandler` queries the registry for `APITemplate()` and `Mappings()` to build requests dynamically. Widgets are lightweight definitions (API template + endpoint mappings), not heavy instances.
 
 ---
 
@@ -251,6 +294,11 @@ cmd/myserver
     │           ├── jsonrpc.go
     │           ├── unifi.go
     │           └── synology.go
+    ├── internal/auth
+    │       ├── allowlist.go      (email/domain matching)
+    │       ├── session.go        (signed stateless cookie)
+    │       ├── google.go         (OAuth code exchange + claim validation)
+    │       └── trustedheader.go  (identity from a front proxy)
     ├── internal/scripts
     │       ├── manager.go        (registration + execution)
     │       ├── executor.go       (os/exec)
@@ -266,10 +314,13 @@ cmd/myserver
             ├── cors.go
             ├── host_validation.go
             ├── rate_limit.go
+            ├── auth.go           (the allowlist gate)
             └── security_headers.go
 ```
 
 **Rule:** `internal/config` does not depend on any other internal package. It is the foundation for all others.
+
+**Corollary:** `internal/auth` depends only on `internal/config`, so `internal/middleware` can import it for the gate without a cycle. The trusted-proxy check stays in `middleware` (only it can see the peer) and is passed into `auth` as a parameter.
 
 ---
 

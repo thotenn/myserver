@@ -26,12 +26,18 @@
   input — and therefore the credentials the widget proxy needs —
   untouched.
 
-### Changed — deployment config is no longer environment-specific
+### Changed — deployment config carries less about one deployment
 
-- `docker-compose.yml` is now orchestrator-neutral and reads
-  `MYSERVER_HOST_PORT` (default `8085`), `MYSERVER_CONFIG_DIR`
-  (default `./config`) and `TZ` (default `Etc/UTC`) from the
-  environment instead of hardcoding one deployment's values.
+- `docker-compose.yml` no longer documents a specific hosting setup
+  (PaaS recipe, tunnel topology, public hostname, migration state). The
+  published host port and the host config directory stay **literal**: the
+  file is a deploy descriptor, and some platforms reject shell-style
+  variables inside a volume source, so parameterizing them broke the
+  deploy — a config directory pointing at the wrong path fails silently
+  (the entrypoint seeds the skeleton and the stock dashboard comes up as
+  if nothing were wrong). The comment at the top of the file says so.
+- `TZ` is passed through from the deployment environment instead of being
+  hardcoded to one timezone.
 - Docs, skill templates and test fixtures use `example.com` hostnames,
   `Etc/UTC`, and neutral host paths / usernames throughout.
 - `docs/context/deploy.md` documents the generic Compose / PaaS flow.

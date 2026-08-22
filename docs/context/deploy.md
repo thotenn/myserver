@@ -8,11 +8,17 @@
 
 ## Production deploy
 
-`docker-compose.yml` is deliberately deploy-agnostic: it works with plain
-`docker compose up -d` and with any platform that consumes a Compose file
-(Dokploy, Coolify, CapRover, Portainer stacks, …). Everything
-environment-specific is read from environment variables so nothing about your
-hosts lives in the repo.
+`docker-compose.yml` works with plain `docker compose up -d` and with any
+platform that consumes a Compose file (Dokploy, Coolify, CapRover, Portainer
+stacks, …). Two values in it are **literal and meant to be edited**: the
+published host port and the host config directory. Everything else comes from
+the deployment environment.
+
+> **Do not turn those two into shell-style variables.** Some platforms reject
+> variable substitution inside a volume source and refuse to deploy, and worse,
+> a config directory that resolves to the wrong path fails *silently*: the
+> entrypoint sees an empty `/app/config`, seeds the embedded skeleton, and the
+> stock dashboard comes up looking healthy while your YAML is nowhere in sight.
 
 ### Initial setup
 
@@ -20,26 +26,25 @@ hosts lives in the repo.
 2. If you use a PaaS, create an app of type "Docker Compose" pointing at the
    repo. It reads `docker-compose.yml` and builds the image from the
    `Dockerfile` at the repo root.
-3. Create the host config directory:
+3. Create the host config directory and point the compose file at it —
+   edit the bind mount under `volumes:` and the host side of `ports:`:
 
    ```bash
-   sudo mkdir -p /srv/myserver/config
-   sudo chown $(id -u):$(id -g) /srv/myserver/config
+   sudo mkdir -p /opt/myserver/config
+   sudo chown $(id -u):$(id -g) /opt/myserver/config
    ```
 
 4. Copy the skeletons and edit them:
 
    ```bash
-   cp internal/config/skeleton/*.yaml /srv/myserver/config/
-   $EDITOR /srv/myserver/config/{services,settings,widgets,bookmarks,docker}.yaml
+   cp internal/config/skeleton/*.yaml /opt/myserver/config/
+   $EDITOR /opt/myserver/config/{services,settings,widgets,bookmarks,docker}.yaml
    ```
 
 5. Configure the environment (a `.env` next to the compose file, or your
    platform's environment UI):
 
    ```
-   MYSERVER_CONFIG_DIR=/srv/myserver/config        # host dir from step 3
-   MYSERVER_HOST_PORT=8085                         # published host port
    TZ=Etc/UTC
    HOMEPAGE_ALLOWED_HOSTS=dashboard.example.com,dashboard.example.com:443
    HOMEPAGE_SCRIPTS_ENABLED=true                   # optional
@@ -60,7 +65,7 @@ hosts lives in the repo.
 
 | Host | Container | Purpose |
 |---|---|---|
-| `$MYSERVER_CONFIG_DIR` | `/app/config` | User YAML + scripts + data (bind mount, hot-reload). |
+| the host dir in `volumes:` | `/app/config` | User YAML + scripts + data (bind mount, hot-reload). |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Docker stats + script wrappers. |
 
 Mount the socket `:ro` when scripts don't need to mutate containers.

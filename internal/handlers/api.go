@@ -26,6 +26,10 @@ func setupMiddleware(r chi.Router, logger *zap.Logger) {
 	r.Use(mw.Recovery(logger))
 	r.Use(mw.Logging(logger))
 	r.Use(mw.SecurityHeaders)
+	// The auth gate sits above every route, including static files and the
+	// dashboard itself. With an empty allowlist it is a single bool check and
+	// passes the request straight through.
+	r.Use(mw.Auth(logger))
 	r.Use(middleware.Compress(5, "text/html", "text/css", "application/javascript", "application/json"))
 }
 
@@ -37,6 +41,19 @@ func setupRoutes(r chi.Router, logger *zap.Logger, port int) {
 
 	// Main dashboard page
 	r.Get("/", Dashboard())
+
+	// Authentication. These routes are always registered and answer 404 while
+	// the allowlist is empty, so that filling in auth.yaml arms the login
+	// without a restart (see internal/handlers/auth.go).
+	r.Route("/auth", func(r chi.Router) {
+		r.Get("/login", AuthLogin(logger))
+		r.Get("/denied", AuthDenied(logger))
+		// The login endpoints are the one unauthenticated path that talks to
+		// an upstream, so they get the tightest rate limit in the app.
+		r.With(rateLimit(1, 3)).Get("/google/start", AuthGoogleStart(logger))
+		r.With(rateLimit(1, 3)).Get("/google/callback", AuthGoogleCallback(logger))
+		r.Post("/logout", AuthLogout(logger))
+	})
 
 	// API routes with CORS, host validation, and rate limiting.
 	// Apply a restricted CORS policy only to /api/* so the dashboard HTML is

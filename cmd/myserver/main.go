@@ -26,6 +26,7 @@ func main() {
 	defer logger.Sync()
 
 	initConfig(logger)
+	initAuth(logger)
 	widgets.RegisterBuiltinWidgets()
 
 	dockerDiscoverers := initDocker(logger)
@@ -61,6 +62,40 @@ func initConfig(logger *zap.Logger) {
 	}
 	config.ReloadCache()
 	logger.Info("config cache initialised")
+}
+
+// initAuth reports the authentication policy at startup and refuses to run
+// with one that is broken.
+//
+// Startup is the only place that may be fatal. Once the process is serving,
+// a bad edit to auth.yaml must never take the dashboard down or, far worse,
+// open it: the watcher keeps the last known good policy instead.
+func initAuth(logger *zap.Logger) {
+	state := config.Auth()
+
+	if state.Err != nil {
+		logger.Fatal("authentication is configured but unusable; refusing to start",
+			zap.Error(state.Err),
+			zap.String("file", config.AuthFile))
+	}
+	if !state.Required {
+		if config.AuthRequiredEnv() {
+			logger.Fatal("HOMEPAGE_AUTH_REQUIRED=true but no allowlist is configured",
+				zap.String("file", config.AuthFile))
+		}
+		logger.Info("authentication disabled: dashboard is public",
+			zap.String("file", config.AuthFile))
+		return
+	}
+
+	logger.Info("authentication enabled",
+		zap.String("provider", state.Config.ProviderName()),
+		zap.Int("allowedEmails", len(state.Config.Allowlist.Emails)),
+		zap.Int("allowedDomains", len(state.Config.Allowlist.Domains)))
+	if state.Config.UsesGeneratedSecret() {
+		logger.Warn("session.secret is not set: a random key was generated, " +
+			"so every restart signs everybody out")
+	}
 }
 
 func initDocker(logger *zap.Logger) []*discovery.DockerDiscoverer {
@@ -128,6 +163,7 @@ func startWatcher(logger *zap.Logger, scriptMgr *scripts.Manager) *config.Watche
 		handlers.InvalidateProxyCache()
 		handlers.InvalidateDockerClients()
 		logger.Info("config reloaded", zap.String("hash", config.CurrentHash()))
+		logAuthReload(logger)
 		if scriptMgr != nil {
 			if err := registerScripts(scriptMgr, logger); err != nil {
 				logger.Warn("failed to reload scripts", zap.Error(err))
@@ -215,4 +251,25 @@ func registerScripts(mgr *scripts.Manager, logger *zap.Logger) error {
 	}
 	logger.Info("scripts reloaded", zap.Int("registered", len(newScripts)))
 	return nil
+}
+
+// logAuthReload surfaces what happened to the authentication policy after a
+// hot-reload. A policy that could not be re-read is the failure mode this
+// feature exists to make loud.
+func logAuthReload(logger *zap.Logger) {
+	state := config.Auth()
+	switch {
+	case state.Lockdown:
+		logger.Error("auth policy unusable: serving 503 until it is fixed",
+			zap.Error(state.Err), zap.String("file", config.AuthFile))
+	case state.Degraded:
+		logger.Error("auth policy could not be re-read: keeping the last known good one",
+			zap.Error(state.Err), zap.String("file", config.AuthFile))
+	case state.Required:
+		logger.Info("auth policy reloaded",
+			zap.Int("allowedEmails", len(state.Config.Allowlist.Emails)),
+			zap.Int("allowedDomains", len(state.Config.Allowlist.Domains)))
+	default:
+		logger.Info("auth policy reloaded: authentication is off, dashboard is public")
+	}
 }

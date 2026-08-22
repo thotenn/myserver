@@ -24,6 +24,9 @@ templ Header(data PageData) {
 					}
 				}
 				@ThemeToggle()
+				if data.AuthEmail != "" {
+					@SignOutButton(data)
+				}
 			</div>
 		</div>
 		<!-- Title + unified search (web search + live QuickLaunch dropdown) -->

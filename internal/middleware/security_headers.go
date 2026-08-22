@@ -3,6 +3,8 @@ package middleware
 import (
 	"net/http"
 	"os"
+
+	"github.com/thotenn/myserver/internal/config"
 )
 
 // SecurityHeaders adds security headers to every response.
@@ -24,12 +26,18 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		//   - data:          → inline favicons and embedded image data URIs
 		// The dashboard sits behind an external auth layer in production,
 		// so the threat surface for arbitrary image hosts is acceptable.
-		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; "+
-				"script-src 'self' unpkg.com cdn.jsdelivr.net; "+
-				"style-src 'self' 'unsafe-inline'; "+
-				"img-src 'self' https: data:; "+
-				"connect-src 'self';")
+		csp := "default-src 'self'; " +
+			"script-src 'self' unpkg.com cdn.jsdelivr.net; " +
+			"style-src 'self' 'unsafe-inline'; " +
+			"img-src 'self' https: data:; " +
+			"connect-src 'self';"
+		// Only tightened when a login exists to protect: with authentication
+		// off the header must stay byte-for-byte what it was before the
+		// feature was added.
+		if config.Auth().Required {
+			csp += " form-action 'self';"
+		}
+		w.Header().Set("Content-Security-Policy", csp)
 
 		if os.Getenv("HOMEPAGE_HSTS") == "true" {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")

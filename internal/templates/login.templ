@@ -1,0 +1,127 @@
+package templates
+
+// AuthPageData holds what the login and denied pages need. It is deliberately
+// separate from PageData: these pages render before the visitor is trusted, so
+// they must not carry services, bookmarks or widget config.
+type AuthPageData struct {
+	Title    string
+	Language string
+	Theme    string
+	Color    string
+	Hash     string
+	// StartURL begins the provider login, carrying the validated `next`.
+	StartURL string
+	// Email is the address that was rejected, shown on the denied page.
+	Email string
+	// Error is a translation key describing a failed login attempt.
+	Error string
+}
+
+// authShell is a standalone page frame for the auth pages.
+//
+// It does not reuse Layout: that one renders the dashboard header, footer and
+// widget scripts, all of which belong to an authenticated view. It also skips
+// /api/config/custom.css, which sits behind the gate — operator CSS is content,
+// and content is what the gate exists to protect.
+templ authShell(data AuthPageData) {
+	<!DOCTYPE html>
+	<html lang={ data.Language } class={ data.Theme + " theme-" + data.Color }>
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<meta name="robots" content="noindex, nofollow"/>
+			<title>{ data.Title }</title>
+			<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.Hash }/>
+			<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.Hash }/>
+		</head>
+		<body class="min-h-screen bg-theme-50 dark:bg-theme-900 text-theme-900 dark:text-theme-100">
+			<main class="min-h-screen flex items-center justify-center px-4">
+				<div class="w-full max-w-sm">
+					{ children... }
+				</div>
+			</main>
+		</body>
+	</html>
+}
+
+// LoginPage asks the visitor to sign in.
+templ LoginPage(data AuthPageData) {
+	@authShell(data) {
+		<div class="rounded-lg bg-theme-100 dark:bg-theme-800 p-8 shadow-sm text-center">
+			<h1 class="text-xl font-medium text-theme-800 dark:text-theme-100">
+				{ data.Title }
+			</h1>
+			<p class="mt-2 text-sm text-theme-600 dark:text-theme-400">
+				{ T(data.Language, "auth.signInPrompt") }
+			</p>
+			if data.Error != "" {
+				<p class="mt-4 rounded bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+					{ T(data.Language, data.Error) }
+				</p>
+			}
+			<a
+				href={ templ.SafeURL(data.StartURL) }
+				class="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-lg bg-theme-50 dark:bg-theme-700 px-4 py-3 text-sm font-medium text-theme-800 dark:text-theme-100 shadow-sm hover:bg-theme-200 dark:hover:bg-theme-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+			>
+				@googleMark()
+				{ T(data.Language, "auth.signInWithGoogle") }
+			</a>
+		</div>
+	}
+}
+
+// DeniedPage tells an authenticated visitor that their address is not listed.
+templ DeniedPage(data AuthPageData) {
+	@authShell(data) {
+		<div class="rounded-lg bg-theme-100 dark:bg-theme-800 p-8 shadow-sm text-center">
+			<h1 class="text-xl font-medium text-theme-800 dark:text-theme-100">
+				{ T(data.Language, "auth.deniedTitle") }
+			</h1>
+			<p class="mt-2 text-sm text-theme-600 dark:text-theme-400">
+				{ T(data.Language, "auth.deniedBody") }
+			</p>
+			if data.Email != "" {
+				<p class="mt-4 break-all rounded bg-theme-200 dark:bg-theme-700 px-3 py-2 font-mono text-xs text-theme-700 dark:text-theme-300">
+					{ data.Email }
+				</p>
+			}
+			<a
+				href="/auth/login"
+				class="mt-6 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400"
+			>
+				{ T(data.Language, "auth.tryAnotherAccount") }
+			</a>
+		</div>
+	}
+}
+
+// googleMark is the Google "G", inlined so the login page needs no external
+// asset and no CSP exception.
+templ googleMark() {
+	<svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 48 48" aria-hidden="true">
+		<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+		<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+		<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+		<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+	</svg>
+}
+
+// SignOutButton ends the session from the dashboard header.
+//
+// It is a real form POST rather than a link: a GET that logs you out can be
+// triggered by any image tag on any page. The CSP forbids inline handlers, so
+// there is no onclick here either.
+templ SignOutButton(data PageData) {
+	<form method="post" action="/auth/logout" class="flex-shrink-0">
+		<button
+			type="submit"
+			title={ data.AuthEmail }
+			aria-label={ T(data.Language, "auth.signOut") }
+			class="p-2 rounded-lg text-theme-600 dark:text-theme-400 hover:bg-theme-200 dark:hover:bg-theme-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+		>
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+			</svg>
+		</button>
+	</form>
+}

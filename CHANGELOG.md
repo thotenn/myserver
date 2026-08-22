@@ -2,6 +2,57 @@
 
 ## Unreleased
 
+### Added — optional email allowlist with Google sign-in
+
+Opt-in authentication, configured by a new `config/auth.yaml`. It is an
+extension, not a compatibility break: Homepage never reads that file.
+
+- **The allowlist is the switch.** No `enabled` flag — a file listing at least
+  one email or domain makes sign-in mandatory; an absent file or an empty
+  allowlist leaves the dashboard exactly as public as before. With
+  authentication off, responses are byte-for-byte unchanged: no cookies, no
+  redirects, the same CSP, and `/auth/*` answers 404. A regression test covers
+  every content path for this.
+- **Failing closed is the point.** The auth policy lives in its own
+  `atomic.Value` rather than in `cachedConfig`, which discards load errors — a
+  policy that silently became nil would publish the dashboard. A broken edit
+  keeps the last working allowlist; a broken file with nothing to fall back on,
+  or one that disappears while sign-in is active, answers 503 everywhere except
+  `/api/healthcheck`. Only a well-formed, empty allowlist opens the dashboard.
+  A bad policy at startup is fatal; on hot-reload it never is.
+- **The gate covers everything**, via an allowlist of public paths rather than
+  a denylist: `/static/*`, `/auth/*` and `/api/healthcheck` are open, all else
+  requires a session — including `/api/services`, `/api/widgets` and
+  `/api/services/proxy`, which together rebuild the dashboard from outside, and
+  `/api/scripts/*`, which runs shell. Routes added later are protected by
+  default.
+- **The allowlist is re-checked on every request**, not just at login, so
+  removing an address evicts that person immediately instead of when their
+  cookie lapses. Adding one grants access with no restart.
+- **Unauthenticated requests are answered in the caller's own terms**: `302`
+  for navigation, `401` + `HX-Redirect` for HTMX (so a polling widget does not
+  paint the login form inside its card), `401` JSON for API clients. An address
+  that signs in but is not listed gets `403` and no cookie.
+- **No new dependencies.** The ID Token arrives over direct TLS from the token
+  endpoint — the case OIDC Core §3.1.3.7(6) covers — so its claims (`iss`,
+  `aud`, `exp`, `nonce`, `email_verified`) are validated without JWKS, a JWT
+  library, or an OAuth package. Sessions are stateless: HMAC-SHA256 over
+  `email | expiry | nonce`, `HttpOnly` (mandatory, since `custom.js` is
+  operator JavaScript on the same page), `SameSite=Lax`, `Secure`, sliding
+  renewal past half-life.
+- **Listing a public mail provider under `domains:` is refused at startup**
+  (`gmail.com` and friends) unless `allowPublicDomains: true` is set — it would
+  admit anyone who can register an address there.
+- **`provider: trustedHeader`** reads the identity a front proxy asserts
+  (`Cf-Access-Authenticated-User-Email`, `Remote-Email`, `X-Forwarded-Email`)
+  and puts it through the same allowlist, but only when the immediate peer is
+  in `TRUSTED_PROXIES`. Deployments already behind SSO get the allowlist with
+  no OAuth setup.
+- `HOMEPAGE_AUTH_REQUIRED=true` refuses to start without an allowlist and
+  answers 503 whenever the policy is unavailable.
+- Docs: [`docs/context/authentication.md`](docs/context/authentication.md), plus
+  a README section and `/auth/*` in the API reference.
+
 ### Fixed — `/api/services` credential leak and shared-slice data race
 
 - **Basic-auth in `href` / `siteMonitor` was returned verbatim**

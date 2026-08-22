@@ -19,6 +19,7 @@ is hot-reloaded by `fsnotify` — no restart needed.
 4. [`widgets.yaml`](#widgetsyaml)
 5. [`docker.yaml`](#dockeryaml)
 6. [`scripts.yaml`](#scriptsyaml) — see also [`scripts.md`](./scripts.md) for the feature guide
+7. `auth.yaml` — optional email allowlist, documented in [`authentication.md`](./authentication.md)
 7. [Environment variables](#environment-variables)
 8. [Variable substitution in YAML](#variable-substitution-in-yaml)
 9. [Info widgets](#info-widgets)

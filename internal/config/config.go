@@ -144,7 +144,7 @@ func configHash() (string, error) {
 	configFiles := []string{
 		"services.yaml", "bookmarks.yaml", "widgets.yaml",
 		"docker.yaml", "kubernetes.yaml", "proxmox.yaml",
-		"settings.yaml", "scripts.yaml",
+		"settings.yaml", "scripts.yaml", AuthFile,
 		"custom.css", "custom.js",
 	}
 

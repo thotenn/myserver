@@ -15,6 +15,7 @@ myserver/                              # repository root
 │   ├── config/                       # YAML parsing, env var substitution, watcher
 │   │   ├── skeleton/                 # Default YAMLs embedded (go:embed)
 │   │   │   ├── bookmarks.yaml
+│   │   │   ├── auth.yaml          # optional — presence of an allowlist requires login
 │   │   │   ├── docker.yaml
 │   │   │   ├── kubernetes.yaml
 │   │   │   ├── proxmox.yaml
@@ -226,6 +227,7 @@ myserver/                              # repository root
 | `kubernetes.yaml` | Map of `{serverName: {kubeconfig}}` | `LoadKubernetes()` | K8s cluster configs |
 | `proxmox.yaml` | Map of `{serverName: {url, token, secret}}` | `LoadProxmox()` | Proxmox server configs |
 | `scripts.yaml` | `{scripts: {name: {command, description, ...}}}` | `LoadScriptsFile()` | Script definitions |
+| `auth.yaml` | `{allowlist, google, session, ...}` | `config.Auth()` | Optional email allowlist. Not in `cachedConfig`: it has its own atomic value with last-known-good semantics ([`authentication.md`](./authentication.md)) |
 | `custom.css` | Plain CSS | — | Injected into `<head>` |
 | `custom.js` | Plain JS | — | Injected before `</body>` |
 

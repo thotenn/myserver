@@ -26,6 +26,28 @@ Handlers do **content negotiation** via the `HX-Request` header:
 
 ---
 
+## Authentication
+
+Registered always, but every route answers **404 while `config/auth.yaml`
+lists nobody** — the allowlist is what turns the feature on. See
+[`authentication.md`](./authentication.md).
+
+| Method | Path | Description | Rate |
+|---|---|---|---|
+| GET  | `/auth/login` | Login page. Redirects to `/` when already signed in. | — |
+| GET  | `/auth/denied` | 403 page for an address that is not on the allowlist. | — |
+| GET  | `/auth/google/start` | Starts the OAuth flow; sets the state/nonce cookie. | 1/s |
+| GET  | `/auth/google/callback` | Completes it; issues the session cookie. | 1/s |
+| POST | `/auth/logout` | Clears the session cookie. | — |
+
+**When an allowlist is configured, every other endpoint on this page requires
+a session**, except `/api/healthcheck` and `/static/*`. Anonymous callers get
+`302` to the login (navigation), `401` + `HX-Redirect` (HTMX) or `401` JSON
+(API clients); an authenticated address that is not on the allowlist gets
+`403`.
+
+---
+
 ## Widget proxy
 
 | Method | Path | Description | Rate |

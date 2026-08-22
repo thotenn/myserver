@@ -28,6 +28,13 @@ func GetCachedConfig() *cachedConfig {
 	return nil
 }
 
+// ResetCache empties the in-memory snapshot (for testing) so that loaders
+// read from disk again. Without it, a test that reloads the cache would keep
+// answering later tests from its own fixture directory.
+func ResetCache() {
+	configCache.Store((*cachedConfig)(nil))
+}
+
 // ReloadCache loads all configuration files from disk and atomically swaps
 // the in-memory cache. It should be called at startup and whenever the file
 // watcher detects a change.
@@ -44,4 +51,9 @@ func ReloadCache() {
 	c.Hash, _ = configHash()
 	configCache.Store(c)
 	SetCurrentHash(c.Hash)
+	// auth.yaml deliberately does NOT live in cachedConfig: the pattern above
+	// discards load errors, and an auth policy that silently becomes nil would
+	// publish the dashboard. ReloadAuth keeps its own atomic value with
+	// last-known-good semantics instead.
+	ReloadAuth()
 }

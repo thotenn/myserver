@@ -24,6 +24,12 @@
 #                                addresses, which is the normal case when the
 #                                dashboard shares a container network with the
 #                                services it monitors.
+#   HOMEPAGE_VAR_GOOGLE_CLIENT_ID / _SECRET
+#                                only needed for the optional email allowlist
+#                                (see docs/context/authentication.md). They are
+#                                declared under `environment:` below so Compose
+#                                forwards them; the values stay in the
+#                                environment.
 #
 # Security notes:
 #   * The dashboard has no internal auth — put an auth layer in front of it
@@ -55,6 +61,14 @@ services:
       # the OS; GOGC=50 grows the heap by +50% instead of +100% between GCs.
       - GOMEMLIMIT=80MiB
       - GOGC=50
+      # Google OAuth credentials for the optional email allowlist
+      # (config/auth.yaml). Listed with no value so they are inherited from
+      # the deployment environment — Compose does not forward a host variable
+      # to the container unless the service names it here, and an auth.yaml
+      # whose {{HOMEPAGE_VAR_*}} placeholders stay unresolved refuses to
+      # start. Harmless when the allowlist is unused.
+      - HOMEPAGE_VAR_GOOGLE_CLIENT_ID
+      - HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET
       # Set these in your deployment environment, not here:
       #   HOMEPAGE_ALLOWED_HOSTS, HOMEPAGE_SCRIPTS_ENABLED,
       #   HOMEPAGE_ALLOW_PRIVATE_HOSTS

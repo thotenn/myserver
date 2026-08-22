@@ -15,6 +15,8 @@ type PageData struct {
 	Language       string
 	Hash           string
 	ScriptsEnabled bool
+	// AuthEmail is the signed-in address, empty when authentication is off.
+	AuthEmail string
 }
 
 // TabGroup represents services organized by tabs.

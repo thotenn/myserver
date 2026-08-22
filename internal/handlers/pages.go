@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/thotenn/myserver/internal/config"
+	mw "github.com/thotenn/myserver/internal/middleware"
 	"github.com/thotenn/myserver/internal/templates"
 )
 
@@ -54,6 +55,7 @@ func Dashboard() http.HandlerFunc {
 			Language:       settings.Language,
 			Hash:           config.CurrentHash(),
 			ScriptsEnabled: config.ScriptsEnabled(),
+			AuthEmail:      mw.SessionEmail(r.Context()),
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -139,11 +139,74 @@ Full schema, every widget type, env vars, and the icon resolver →
 
 ---
 
+## Optional: email allowlist with Google sign-in
+
+By default the dashboard is public and expects an auth layer in front of it.
+If you would rather have MyServer do the gatekeeping itself, drop a
+`config/auth.yaml` listing who may enter:
+
+```yaml
+# config/auth.yaml — the allowlist IS the switch
+allowlist:
+  emails:
+    - you@example.com
+    - teammate@example.com
+
+google:
+  clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL:  "https://dashboard.example.com/auth/google/callback"
+```
+
+**No file, or an empty allowlist, means the dashboard stays public and every
+response is exactly what it was before** — no cookies, no redirects, no
+`/auth/*` routes. List one address and sign-in becomes mandatory for
+everything: the dashboard, every `/api/*` endpoint, the widget proxy and the
+scripts. Only `/static/*`, the login pages and `/api/healthcheck` stay open.
+
+Setup, in three steps:
+
+1. Create an OAuth client (type *Web application*) in the Google Cloud
+   console and register `https://your.dashboard/auth/google/callback` as an
+   authorized redirect URI.
+2. Put the id and secret in the deployment environment as
+   `HOMEPAGE_VAR_GOOGLE_CLIENT_ID` and `HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET`
+   (a `.env` next to the Compose file, or your platform's environment UI).
+   `docker-compose.yml` already declares both under `environment:` with no
+   value, so Compose forwards them — a variable set on the host does **not**
+   reach the container unless the service names it.
+3. Write `config/auth.yaml`. No restart needed — adding or removing an
+   address takes effect on the next request, and a removed address is
+   evicted immediately rather than when their cookie expires.
+
+> **Set the variables before the file.** An `auth.yaml` whose
+> `{{HOMEPAGE_VAR_*}}` placeholders cannot be resolved refuses to start, so
+> writing the file first puts the container in a restart loop. That is the
+> intended behaviour — a half-configured login must not run — but it is easier
+> to avoid than to debug.
+
+Worth knowing:
+
+| | |
+|---|---|
+| **A broken `auth.yaml` never opens the dashboard.** | A YAML typo keeps the last working allowlist and logs the error; a file that disappears while sign-in was active makes the app answer 503 everywhere. The only way to go public is a well-formed file with an empty allowlist. |
+| **`session.secret` is optional.** | Left unset, a random key is generated at startup, so a restart or redeploy signs everybody out. Set it (via `{{HOMEPAGE_VAR_…}}`) to keep sessions across restarts. |
+| **`domains:` is accepted, public mail providers are not.** | `domains: [example.com]` admits everyone at your company. Listing `gmail.com` and friends is refused at startup — it would admit the entire internet — unless you also set `allowPublicDomains: true`. |
+| **Sessions are stateless.** | There is no "sign out everywhere": rotate `session.secret` to invalidate every cookie, or remove the address from the allowlist to evict one person. |
+| **Already behind an SSO proxy?** | Set `provider: trustedHeader` with `trustedHeader.header: Cf-Access-Authenticated-User-Email` (or Authelia's `Remote-Email`, oauth2-proxy's `X-Forwarded-Email`) and the same allowlist applies without any OAuth setup. The header is honoured only when the immediate peer is in `TRUSTED_PROXIES`. |
+
+Full schema and every option →
+[`docs/context/authentication.md`](docs/context/authentication.md).
+
+---
+
 ## Security model in one paragraph
 
-The dashboard ships **without internal auth** — production deployments put
-an external auth layer in front (Cloudflare Access, Authelia, oauth2-proxy,
-…). The container itself enforces: host validation (`HOMEPAGE_ALLOWED_HOSTS`),
+The dashboard ships **without internal auth by default** — production
+deployments usually put an external auth layer in front (Cloudflare Access,
+Authelia, oauth2-proxy, …), and an optional built-in
+[email allowlist](#optional-email-allowlist-with-google-sign-in) is available
+when you would rather not. The container itself enforces: host validation (`HOMEPAGE_ALLOWED_HOSTS`),
 same-origin CORS only on `/api/*`, per-IP token-bucket rate limiting,
 strict CSP + security headers (HSTS opt-in), an SSRF guard on the widget
 proxy with cloud-metadata-IP blocking, and recursive credential
@@ -164,6 +227,7 @@ Full details: [`docs/context/configuration.md#environment-variables`](docs/conte
 | Read the full YAML schema | [`docs/context/configuration.md`](docs/context/configuration.md) |
 | Copy a working config to start from | [`.agents/skills/add-widget/templates/`](.agents/skills/add-widget/templates/) · [`bootstrap-demo-config.sh`](bootstrap-demo-config.sh) |
 | Use the scripts feature | [`docs/context/scripts.md`](docs/context/scripts.md) |
+| Require a login and restrict who sees the dashboard | [`docs/context/authentication.md`](docs/context/authentication.md) |
 | Hit the HTTP API directly | [`docs/context/api.md`](docs/context/api.md) |
 | Deploy to production, or run locally | [`docs/context/deploy.md`](docs/context/deploy.md) |
 | Diagnose a broken widget / icon / hot-reload | [`docs/context/troubleshooting.md`](docs/context/troubleshooting.md) |

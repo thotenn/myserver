@@ -43,18 +43,29 @@ func isTrustedProxy(ip string) bool {
 	return false
 }
 
+// PeerIsTrusted reports whether the immediate peer of this request is one of
+// the configured reverse proxies. Identity headers asserted by a front proxy
+// are only meaningful when this is true.
+func PeerIsTrusted(r *http.Request) bool {
+	return isTrustedProxy(peerHost(r.RemoteAddr))
+}
+
+// peerHost strips the port from a RemoteAddr, handling the [::1]:port form.
+func peerHost(remoteAddr string) string {
+	host := remoteAddr
+	if idx := strings.LastIndex(remoteAddr, ":"); idx >= 0 {
+		host = remoteAddr[:idx]
+	}
+	return strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
+}
+
 // ClientIPFromRequest extracts the client IP. By default it trusts
 // X-Forwarded-For / X-Real-IP only when the immediate peer is in the
 // TRUSTED_PROXIES list (default 127.0.0.1/8 and ::1/128). Otherwise it
 // uses RemoteAddr to prevent trivial spoofing from direct network access.
 func ClientIPFromRequest(r *http.Request) string {
 	peer := r.RemoteAddr
-	host := peer
-	if idx := strings.LastIndex(peer, ":"); idx >= 0 {
-		host = peer[:idx]
-		host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
-	}
-	if isTrustedProxy(host) {
+	if isTrustedProxy(peerHost(peer)) {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			if idx := strings.Index(xff, ","); idx >= 0 {
 				return strings.TrimSpace(xff[:idx])

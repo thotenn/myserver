@@ -7,7 +7,8 @@ Target: ~50–80 MiB RAM, single ~14 MB binary, ~30 MB Docker image.
 - **User documentation**: `README.md`
 - **Agent skill (add features without writing Go)**: `.agents/skills/add-widget/`
 - **Context docs**: `docs/context/` (architecture, configuration schema, API
-  reference, features, deploy, scripts, troubleshooting, glossaries)
+  reference, features, deploy, scripts, authentication, troubleshooting,
+  glossaries)
 
 > `docs/context/` is public documentation about the software. Keep it free of
 > deployment specifics — hostnames, host ports, host paths, reverse-proxy or
@@ -43,9 +44,10 @@ make up | down | logs   # docker compose wrappers
 | `internal/handlers` | HTTP handlers. | Content negotiation via `HX-Request` header: HTML (Templ) for HTMX, JSON for API clients. |
 | `internal/templates` | Templ sources + `*_templ.go` (committed) + helpers (`urls.go`, `icons.go`, `styles.go`, `layout.go`, `format.go`) + `i18n.go`. | |
 | `internal/widgets` | Declarative registry (160+ entries) + `BaseWidget` + interfaces. | `GenericProxyHandler` reads `APITemplate()` and `Mappings()` from the registry at request time. |
+| `internal/auth` | Optional email allowlist: session cookie (HMAC), Google OAuth, `trustedHeader` provider. Stdlib only. | Depends on `internal/config` and nothing else, so `internal/middleware` can import it without a cycle. |
 | `internal/proxy` | Secure HTTP proxy. SSRF guard, transport pool, gzip/zlib decompression, `file://` scheme, TTL cache. | `scrubError()` sanitizes credentials in error strings. |
 | `internal/scripts` | Opt-in script execution. | Strong sandboxing. Hot-reloaded by the config watcher via `Manager.ReplaceAll`. |
-| `internal/middleware` | Recovery, Logging, RateLimit, CORS (same-origin), HostValidation (port-aware), SecurityHeaders (CSP, HSTS opt-in), TrustedProxy. | |
+| `internal/middleware` | Recovery, Logging, RateLimit, CORS (same-origin), HostValidation (port-aware), SecurityHeaders (CSP, HSTS opt-in), TrustedProxy, Auth (the allowlist gate). | |
 | `internal/discovery` | Docker/Podman label discovery + `MergeServices` (config wins over discovery). | |
 | `web/static`, `web/tailwind` | Compiled CSS/JS + Tailwind source. `input.css` uses `@layer base` with `@apply`. | |
 
@@ -115,10 +117,49 @@ make up | down | logs   # docker compose wrappers
 - Endpoint exposure is conditional on `HOMEPAGE_SCRIPTS_ENABLED=true`; when
   disabled, the routes are not registered (handlers also double-check).
 
+### Authentication (optional, `config/auth.yaml`)
+
+- **The allowlist is the switch.** No `enabled` flag: a file with at least one
+  email or domain requires login, an absent file or an empty allowlist keeps
+  the dashboard public. Auth off must stay byte-for-byte identical to the
+  pre-feature behaviour — no cookies, no redirects, same CSP (`form-action` is
+  added only when auth is on), `/auth/*` answers 404. There is a regression
+  test for this; keep it passing.
+- **Never let a config failure mean "public".** `AuthConfig` lives in its own
+  `atomic.Value` (`internal/config/auth.go`), NOT in `cachedConfig` — that one
+  discards load errors (`c.Settings, _ = loadSettings()`), and a policy that
+  silently became nil would publish the dashboard. Broken file with a previous
+  good policy ⇒ keep it, degraded. Broken with nothing to fall back on, or a
+  file that vanished ⇒ lockdown 503. Only a well-formed empty allowlist opens
+  up. Full table in `docs/context/authentication.md`.
+- **Startup may be fatal, hot-reload never is.** `initAuth` in
+  `cmd/myserver/main.go` refuses to start on a bad policy; the watcher only
+  logs and keeps the last known good one.
+- **The gate reads the policy per request**, never captured in the middleware
+  closure — that is what makes the allowlist hot-reloadable and evicts a
+  removed address on their next request. Same rule as `config.CurrentHash()`.
+  Do not repeat the `initScripts` pattern here.
+- **Public paths are an allowlist, not a denylist** (`internal/middleware/auth.go`).
+  Gating only `/` gates nothing: `/api/services` + `/api/widgets` +
+  `/api/services/proxy` rebuild the dashboard from outside and `/api/scripts/*`
+  runs shell. A route added later is protected by default.
+- **`/auth/*` routes are registered unconditionally** and 404 while the
+  allowlist is empty. Registering them conditionally (the scripts pattern)
+  would lock the operator out when they enable auth by editing the YAML,
+  since the gate arms live but the login page would not exist until a restart.
+- **No new dependencies.** The id_token's signature is intentionally not
+  verified: it arrives over direct TLS from the token endpoint, the case OIDC
+  Core §3.1.3.7(6) allows. `iss`/`aud`/`exp`/`nonce`/`email_verified` are still
+  validated. Accepting a token from anywhere else (One Tap, implicit, a
+  generic IdP) reinstates the need for JWKS.
+- `auth.yaml` has **no skeleton** in `internal/config/skeleton/`: the file must
+  stay absent by default, since its content is what turns login on.
+
 ### Security model
 
-- **No internal auth.** The dashboard expects an auth layer in front (Cloudflare
-  Access, Authelia, oauth2-proxy, …). Do not plan internal login.
+- **No internal auth by default.** The dashboard expects an auth layer in front
+  (Cloudflare Access, Authelia, oauth2-proxy, …), or the optional built-in
+  allowlist above. Do not plan local username/password login.
 - `HostValidation` always seeds `localhost:PORT` / `127.0.0.1:PORT` /
   `[::1]:PORT` defaults; `HOMEPAGE_ALLOWED_HOSTS` extends the list. `*` is the
   explicit wildcard.
@@ -151,6 +192,7 @@ make up | down | logs   # docker compose wrappers
 |---|---|---|
 | `internal/scripts` | 66.7% | 14 adversarial tests: path traversal, `.sh` enforcement, env denylist, race, timeout kill-tree, output cap, hot-reload via `ReplaceAll`. |
 | `internal/middleware` | 38.9% | `HostValidation`: defaults, wildcard, port-awareness, case. |
+| `internal/auth` + auth tests in `config`/`handlers` | — | Allowlist matching, forged/expired/foreign-key cookies, id_token claim validation, open-redirect `next`, the gate over every content path, scripts gated, lockdown, `trustedHeader` from an untrusted peer, broken YAML on hot-reload, and auth-off regression. |
 | `internal/handlers` | 10.2% | Basic-auth strip, recursive widget sanitization, scripts disabled → 404. |
 
 ---

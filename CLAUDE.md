@@ -6,7 +6,14 @@ Target: ~50–80 MiB RAM, single ~14 MB binary, ~30 MB Docker image.
 
 - **User documentation**: `README.md`
 - **Agent skill (add features without writing Go)**: `.agents/skills/add-widget/`
-- **Context docs**: `docs/context/` (architecture, glossaries, workflow)
+- **Context docs**: `docs/context/` (architecture, configuration schema, API
+  reference, features, deploy, scripts, troubleshooting, glossaries)
+
+> `docs/context/` is public documentation about the software. Keep it free of
+> deployment specifics — hostnames, host ports, host paths, reverse-proxy or
+> tunnel topology, PaaS particulars. Use placeholders (`dashboard.example.com`,
+> `<HOST_PORT>`, "the reverse proxy") and let real values live in the
+> deployment environment.
 
 ---
 
@@ -111,7 +118,7 @@ make up | down | logs   # docker compose wrappers
 ### Security model
 
 - **No internal auth.** The dashboard expects an auth layer in front (Cloudflare
-  Access in the production deployment). Do not plan internal login.
+  Access, Authelia, oauth2-proxy, …). Do not plan internal login.
 - `HostValidation` always seeds `localhost:PORT` / `127.0.0.1:PORT` /
   `[::1]:PORT` defaults; `HOMEPAGE_ALLOWED_HOSTS` extends the list. `*` is the
   explicit wildcard.
@@ -127,7 +134,14 @@ make up | down | logs   # docker compose wrappers
   (default `true`, since the dominant use case is self-hosted).
 - Credential sanitization: `/api/widgets` and `/api/services` deep-strip keys
   matched by `IsSensitiveKey` (case-insensitive substring) and remove
-  basic-auth userinfo from URLs.
+  basic-auth userinfo + sensitive query params from **every** URL-bearing
+  field — `widget.url`, `href` and `siteMonitor`. The HTML dashboard renders
+  from `config.LoadServices()` and is not affected by this stripping.
+- `handlers.Services` caches an **already sanitized** copy. Never
+  post-process the cached slice in place: it is shared across requests, so
+  editing it is a data race and any per-request view (e.g. filtering by the
+  caller) would leak into other responses. Derive a copy —
+  `sanitizeServiceGroups` is the pattern.
 
 ---
 
@@ -160,7 +174,7 @@ make up | down | logs   # docker compose wrappers
 - Multi-stage Docker. Runtime: `alpine:3.21` + `su-exec` + `bash` + `docker-cli`
   + `wget` + `tini` + `tzdata`. User `myserver:1000` non-root.
 - Required mounts:
-  - `/opt/myserver/config → /app/config` — host bind, hot-reloaded.
+  - `/srv/myserver/config → /app/config` — host bind, hot-reloaded.
   - `/var/run/docker.sock` — Docker stats + script wrappers (mount `:ro` if
     scripts don't need to mutate containers).
 - Key env: `HOMEPAGE_ALLOWED_HOSTS`, `HOMEPAGE_SCRIPTS_ENABLED`,

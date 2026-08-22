@@ -46,10 +46,10 @@ func TestHostValidation_WildcardAllowsAll(t *testing.T) {
 }
 
 func TestHostValidation_ExplicitListWithPort(t *testing.T) {
-	t.Setenv("HOMEPAGE_ALLOWED_HOSTS", "htop.thotenn.com:3000,htop.thotenn.com")
+	t.Setenv("HOMEPAGE_ALLOWED_HOSTS", "dashboard.example.com:3000,dashboard.example.com")
 	mw := HostValidation(3000, zap.NewNop())
-	assert.Equal(t, http.StatusOK, runReq(t, mw, "htop.thotenn.com:3000"))
-	assert.Equal(t, http.StatusOK, runReq(t, mw, "htop.thotenn.com"))
+	assert.Equal(t, http.StatusOK, runReq(t, mw, "dashboard.example.com:3000"))
+	assert.Equal(t, http.StatusOK, runReq(t, mw, "dashboard.example.com"))
 	// Defaults still apply.
 	assert.Equal(t, http.StatusOK, runReq(t, mw, "localhost:3000"))
 	// Other host rejected.
@@ -57,10 +57,10 @@ func TestHostValidation_ExplicitListWithPort(t *testing.T) {
 }
 
 func TestHostValidation_CaseInsensitive(t *testing.T) {
-	t.Setenv("HOMEPAGE_ALLOWED_HOSTS", "Htop.Thotenn.COM")
+	t.Setenv("HOMEPAGE_ALLOWED_HOSTS", "Dashboard.Example.COM")
 	mw := HostValidation(3000, zap.NewNop())
-	assert.Equal(t, http.StatusOK, runReq(t, mw, "htop.thotenn.com"))
-	assert.Equal(t, http.StatusOK, runReq(t, mw, "HTOP.THOTENN.COM"))
+	assert.Equal(t, http.StatusOK, runReq(t, mw, "dashboard.example.com"))
+	assert.Equal(t, http.StatusOK, runReq(t, mw, "DASHBOARD.EXAMPLE.COM"))
 }
 
 func TestHostValidation_LogsRejection(t *testing.T) {

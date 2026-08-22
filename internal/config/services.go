@@ -106,13 +106,21 @@ func loadServices() ([]ServiceGroup, error) {
 // SanitizeService removes sensitive fields from a service for API responses.
 // It strips:
 //   - Widget credential fields (Key, Username, Password, APIKey, Token, Secret, Headers)
-//   - Basic-auth and sensitive query params from Widget.URL
+//   - Basic-auth and sensitive query params from every URL-bearing field:
+//     Widget.URL, Href and SiteMonitor
 //   - Sensitive entries (recursively) from Widget.Body and Widget.Options
 //
 // It preserves Widget.Method, Widget.Mappings, Widget.Body (sanitized) and
 // Widget.Options (sanitized) so the frontend can render the widget.
+//
+// Href and SiteMonitor are sanitized because `href: https://user:pass@host`
+// is a documented way to write a service link, and /api/services used to
+// return it verbatim. The HTML dashboard is unaffected: it renders from
+// config.LoadServices() directly, not from the sanitized API view.
 func SanitizeService(s Service) Service {
 	clean := s
+	clean.Href = sanitizeURL(clean.Href)
+	clean.SiteMonitor = sanitizeURL(clean.SiteMonitor)
 	if clean.Widget != nil {
 		w := *clean.Widget
 		w.Key = ""
@@ -122,7 +130,7 @@ func SanitizeService(s Service) Service {
 		w.Token = ""
 		w.Secret = ""
 		w.Headers = nil
-		w.URL = sanitizeWidgetURL(w.URL)
+		w.URL = sanitizeURL(w.URL)
 		w.Body = sanitizeValue(w.Body)
 		if len(w.Options) > 0 {
 			cleanOpts := make(map[string]interface{}, len(w.Options))
@@ -139,10 +147,9 @@ func SanitizeService(s Service) Service {
 	return clean
 }
 
-// sanitizeWidgetURL strips userinfo (basic-auth) and known credential
-// query params from a widget URL. It returns the URL unchanged if it can't
-// be parsed.
-func sanitizeWidgetURL(raw string) string {
+// sanitizeURL strips userinfo (basic-auth) and known credential query
+// params from a URL. It returns the URL unchanged if it can't be parsed.
+func sanitizeURL(raw string) string {
 	if raw == "" {
 		return ""
 	}

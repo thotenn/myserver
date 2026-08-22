@@ -94,7 +94,7 @@ scripts:
       # Podman rootless (local dev):
       XDG_RUNTIME_DIR: /run/user/1000
       DOCKER_HOST:     unix:///run/user/1000/podman/podman.sock
-      HOME:            /home/tho       # podman reads ~/.config/containers/
+      HOME:            /home/youruser  # podman reads ~/.config/containers/
 
       BACKUP_MODE:   s3
       BACKUP_BUCKET: my-bucket
@@ -134,10 +134,10 @@ echo "Total: $(docker ps -q | wc -l) containers"
 
 ```yaml
 scripts:
-  restart-cloudflared:
+  restart-traefik:
     command: restart-container.sh
-    description: "Restart Cloudflare Tunnel"
-    args: ["cloudflared"]
+    description: "Restart the reverse proxy"
+    args: ["traefik"]
     timeout: 30
     requireConfirm: true
     icon: mdi-restart

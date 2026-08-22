@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — `/api/services` credential leak and shared-slice data race
+
+- **Basic-auth in `href` / `siteMonitor` was returned verbatim**
+  (`internal/config/services.go`). `SanitizeService` scrubbed
+  `widget.url` but left the other two URL-bearing fields untouched, so a
+  service written as `href: https://user:pass@host` leaked its
+  credentials through `/api/services`. All three fields now go through
+  the same sanitizer (renamed `sanitizeWidgetURL` → `sanitizeURL`, since
+  it is no longer widget-specific). The HTML dashboard is unaffected: it
+  renders from `config.LoadServices()`, not from the sanitized API view.
+- **Data race on the merged-services cache**
+  (`internal/handlers/services.go`). The handler sanitized the service
+  list *in place* on the very slice stored in `mergedServicesCache`, so
+  two concurrent requests wrote to the same structs while a third was
+  serializing them — confirmed by the race detector. The cache now holds
+  an already-sanitized copy built by the new `sanitizeServiceGroups`,
+  and `writeServices` only encodes. `nil` in / `nil` out is preserved, so
+  an empty dashboard still serializes as JSON `null` exactly as before.
+- Regression tests: 16 concurrent `/api/services` requests must return
+  byte-identical, fully sanitized bodies (fails under `-race` on the old
+  code), plus a direct check that `sanitizeServiceGroups` leaves its
+  input — and therefore the credentials the widget proxy needs —
+  untouched.
+
+### Changed — deployment config is no longer environment-specific
+
+- `docker-compose.yml` is now orchestrator-neutral and reads
+  `MYSERVER_HOST_PORT` (default `8085`), `MYSERVER_CONFIG_DIR`
+  (default `./config`) and `TZ` (default `Etc/UTC`) from the
+  environment instead of hardcoding one deployment's values.
+- Docs, skill templates and test fixtures use `example.com` hostnames,
+  `Etc/UTC`, and neutral host paths / usernames throughout.
+- `docs/context/deploy.md` documents the generic Compose / PaaS flow.
+- `CLAUDE.md` states the rule the docs follow: `docs/context/` describes
+  the software, not any particular deployment — hostnames, ports, host
+  paths and proxy topology stay as placeholders.
+
 ## v1.5.0 (2026-05-18)
 
 Background-image feature: paint the dashboard with either a local file
@@ -183,7 +222,7 @@ self-contained config directory, and local data source support.
 
 - **`config/` as a bind mount** (`docker-compose.yml`): changed from an
   opaque Docker named volume (`myserver-config`) to a host bind mount
-  (`/opt/myserver/config:/app/config`). Users edit YAMLs directly on the
+  (`/srv/myserver/config:/app/config`). Users edit YAMLs directly on the
   host with any editor; `fsnotify` inside the container detects changes
   and hot-reloads the dashboard without restart.
 - **`file://` scheme support** (`internal/proxy/proxy.go`): widgets can
@@ -484,7 +523,7 @@ zero race conditions, zero lint violations.
 - `internal/templates/types.go` — `DynamicListItem` type
 - `scripts/test-docker-endpoints.sh` — new
 - `../deploy_config.sh` — rename `TriliumNext Moni` → `Notas`
-  (description `TriliumNext`, url `notes.thotenn.com`), drop the
+  (description `TriliumNext`, url `notes.example.com`), drop the
   `TriliumNext` card without container
 
 ## v1.0.0 (2026-04-13)
@@ -520,13 +559,13 @@ HTMX + Tailwind CSS.
 - Recursive credential sanitization on `/api/widgets` and `/api/services`
   (`IsSensitiveKey` case-insensitive substring in maps and slices,
   strips basic-auth from URLs).
-- Deploy via Coolify Private App (GitHub App + auto-deploy on push).
+- Deploy via any Compose-capable PaaS (git-connected, auto-deploy on push).
   Runtime `alpine:3.21` with `su-exec`, `bash`, `docker-cli`, `wget`,
   `tini`, `tzdata`. User `myserver:1000` non-root.
 
 ### Env vars
 
-- `HOMEPAGE_ALLOWED_HOSTS=htop.thotenn.com,localhost:3000`
+- `HOMEPAGE_ALLOWED_HOSTS=dashboard.example.com,localhost:3000`
 - `HOMEPAGE_SCRIPTS_ENABLED=true` (opt-in)
 - `HOMEPAGE_ALLOW_PRIVATE_HOSTS=true` (default true for self-hosted)
-- `TZ=America/Asuncion`
+- `TZ=Etc/UTC`

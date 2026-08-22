@@ -11,7 +11,7 @@
 #   - Inherits minimal env: PATH, HOME=/tmp, USER=myserver, SHELL=/bin/bash, TZ
 #   - For Podman: set HOME and XDG_RUNTIME_DIR in scripts.yaml env:
 #       env:
-#         HOME: /home/tho
+#         HOME: /home/youruser
 #         XDG_RUNTIME_DIR: /run/user/1000
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -168,10 +168,10 @@ echo "Certificate is valid"
 set -euo pipefail
 
 echo "Pulling latest images..."
-docker compose -f /opt/myserver/docker-compose.yml pull
+docker compose -f /srv/myserver/docker-compose.yml pull
 
 echo "Recreating containers..."
-docker compose -f /opt/myserver/docker-compose.yml up -d
+docker compose -f /srv/myserver/docker-compose.yml up -d
 
 echo "Pruning old images..."
 docker image prune -af
@@ -186,7 +186,7 @@ set -euo pipefail
 
 # NOTE: For Podman rootless, set in scripts.yaml:
 #   env:
-#     HOME: /home/tho
+#     HOME: /home/youruser
 #     XDG_RUNTIME_DIR: /run/user/1000
 
 echo "Podman containers:"

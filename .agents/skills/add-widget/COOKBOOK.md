@@ -212,7 +212,7 @@ scripts:
 - search:    { provider: google, target: _blank }
 - datetime:  { text_size: xl, format: { dateStyle: long, timeStyle: short, hour12: false } }
 - greeting:  { text_size: lg }
-- openmeteo: { label: Asuncion, latitude: -25.2637, longitude: -57.5759, timezone: America/Asuncion, units: metric, cache: 5 }
+- openmeteo: { label: London, latitude: 51.5074, longitude: -0.1278, timezone: Etc/UTC, units: metric, cache: 5 }
 - resources: { label: CPU, cpu: true, cputemp: true, uptime: true }
 - resources: { label: RAM, memory: true }
 - resources: { label: Disk, disk: /, expanded: true }
@@ -294,7 +294,7 @@ echo "Backup complete"
 HOMEPAGE_ALLOWED_HOSTS=dash.example.com,localhost:3000
 HOMEPAGE_SCRIPTS_ENABLED=true
 HOMEPAGE_ENABLE_HSTS=true
-TZ=America/Asuncion
+TZ=Etc/UTC
 HOMEPAGE_VAR_PLEX_TOKEN=…
 HOMEPAGE_VAR_SONARR_KEY=…
 HOMEPAGE_VAR_RADARR_KEY=…
@@ -416,7 +416,7 @@ Podman reads `~/.config/containers/storage.conf`. Inside the scrubbed env,
 
 ```yaml
 env:
-  HOME: /home/tho
+  HOME: /home/youruser
   XDG_RUNTIME_DIR: /run/user/1000
   DOCKER_HOST: unix:///run/user/1000/podman/podman.sock
 ```
@@ -499,7 +499,7 @@ scripts:
       DEPLOY_TOKEN: "{{HOMEPAGE_VAR_DEPLOY_TOKEN}}"
 ```
 
-Set the env vars on the container (compose `environment:` or Coolify UI). If
+Set the env vars on the container (compose `environment:` or your platform's env UI). If
 unresolved, the placeholder is kept literally (fail-visible).
 
 ### 3. Custom CSS for card styling
@@ -600,7 +600,7 @@ scripts:
 
 ```yaml
 # widgets.yaml
-- openmeteo: { label: Asuncion,  latitude: -25.2637, longitude: -57.5759, units: metric, cache: 5 }
+- openmeteo: { label: London,  latitude: 51.5074, longitude: -0.1278, units: metric, cache: 5 }
 - openmeteo: { label: New York,  latitude:  40.7128, longitude: -74.0060, units: metric, cache: 5 }
 ```
 
@@ -621,10 +621,10 @@ Create the token in **Proxmox UI → Datacenter → Permissions → API Tokens**
 ```yaml
 # scripts.yaml
 scripts:
-  restart-cloudflared:
+  restart-traefik:
     command: restart-container.sh
-    description: "Restart Cloudflare Tunnel"
-    args: ["cloudflared"]
+    description: "Restart the reverse proxy"
+    args: ["traefik"]
     timeout: 30
     requireConfirm: true
     icon: mdi:restart

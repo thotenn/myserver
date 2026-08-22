@@ -14,7 +14,7 @@ see also [`deploy.md`](./deploy.md#caveats-on-the-dev-compose).
 
 The request's `Host` header doesn't match `HOMEPAGE_ALLOWED_HOSTS`.
 
-- Production: `HOMEPAGE_ALLOWED_HOSTS=htop.thotenn.com` (or your subdomain).
+- Production: `HOMEPAGE_ALLOWED_HOSTS=dashboard.example.com` (or your subdomain).
 - Dev: defaults include `localhost:3000`, `127.0.0.1:3000`, `[::1]:3000`. If
   you changed `-port`, extend the env var accordingly.
 - Logs show the rejected `Host` before returning 400.
@@ -164,7 +164,7 @@ env:
   DOCKER_HOST: unix:///var/run/docker.sock
   # Podman rootless:
   XDG_RUNTIME_DIR: /run/user/1000
-  HOME:            /home/tho
+  HOME:            /home/youruser
 ```
 
 ---

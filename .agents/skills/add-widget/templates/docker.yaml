@@ -78,7 +78,7 @@ homelab:
 
 ---
 # ═══════════════════════════════════════════════════════════════════════════════
-# EXAMPLE 9: Coolify host (Docker socket)
+# EXAMPLE 9: PaaS-managed host (Docker socket)
 # ═══════════════════════════════════════════════════════════════════════════════
 local:
   socket: /var/run/docker.sock

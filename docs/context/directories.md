@@ -7,7 +7,7 @@
 ## Project Root
 
 ```
-/home/tho/www/tho/myserver/
+myserver/                              # repository root
 ├── cmd/myserver/
 │   └── main.go                       # Entry point. Initializes everything and starts the HTTP server.
 │
@@ -206,7 +206,7 @@
 
 | Directory (container) | Content | Mount Type |
 |-----------------------|---------|------------|
-| `/app/config` | User YAMLs + scripts + data | **Host bind mount** (`/opt/myserver/config:/app/config`) |
+| `/app/config` | User YAMLs + scripts + data | **Host bind mount** (`/srv/myserver/config:/app/config`) |
 | `/app/config/scripts` | `.sh` executable scripts | Inside bind mount |
 | `/app/config/data` | Local JSON data sources | Inside bind mount |
 | `/app/web/static` | Compiled assets (CSS, JS) | Copied at build time |

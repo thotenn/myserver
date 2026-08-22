@@ -303,7 +303,7 @@ func checkSSRF(u *url.URL) error {
 		return err
 	}
 	// Resolve all addresses for the host. We use the Go resolver here so
-	// the lookup honours /etc/hosts (Coolify gateways resolve as private
+	// the lookup honours /etc/hosts (PaaS gateways often resolve as private
 	// names but their IPs are still in the docker network).
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -340,7 +340,7 @@ func isBlockedIP(ip net.IP) bool {
 		return true
 	}
 	if ip.IsPrivate() {
-		// RFC1918 (v4) and fc00::/7 (v6) are blocked. Coolify networks live
+		// RFC1918 (v4) and fc00::/7 (v6) are blocked. Container networks live
 		// here too, so users who need to proxy to internal services should
 		// rely on docker dns name. The dialer will still try them via the
 		// dialer configured below — but we block here.

@@ -14,13 +14,13 @@ func TestLoadServices(t *testing.T) {
 	SetConfigDir(tmpDir)
 	defer ResetConfigDir()
 
-	yamlContent := `- Infraestructura:
-    - Coolify:
-        href: https://coolify.thotenn.com
-        icon: mdi:coolify
-        description: Panel de despliegue
+	yamlContent := `- Infrastructure:
+    - Grafana:
+        href: https://grafana.example.com
+        icon: mdi:chart-areaspline
+        description: Metrics dashboard
     - PostgreSQL:
-        href: https://pgsql.thotenn.com
+        href: https://pgsql.example.com
         icon: mdi:database
         widget:
           type: customapi
@@ -44,11 +44,11 @@ func TestLoadServices(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, groups, 2)
 
-	assert.Equal(t, "Infraestructura", groups[0].Name)
+	assert.Equal(t, "Infrastructure", groups[0].Name)
 	require.Len(t, groups[0].Services, 2)
-	assert.Equal(t, "Coolify", groups[0].Services[0].Name)
-	assert.Equal(t, "https://coolify.thotenn.com", groups[0].Services[0].Href)
-	assert.Equal(t, "mdi:coolify", groups[0].Services[0].Icon)
+	assert.Equal(t, "Grafana", groups[0].Services[0].Name)
+	assert.Equal(t, "https://grafana.example.com", groups[0].Services[0].Href)
+	assert.Equal(t, "mdi:chart-areaspline", groups[0].Services[0].Icon)
 
 	assert.Equal(t, "PostgreSQL", groups[0].Services[1].Name)
 	require.NotNil(t, groups[0].Services[1].Widget)

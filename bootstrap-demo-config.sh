@@ -505,10 +505,10 @@ cat > "${CONFIG_DIR}/services.yaml" <<'YAML'
         icon: mdi:refresh
         script: generate-status
 
-    - Restart Cloudflared:
-        description: Restart the tunnel
+    - Restart proxy:
+        description: Restart the reverse proxy
         icon: mdi:restart
-        script: restart-cloudflared
+        script: restart-traefik
         requireConfirm: true
 
     - Full backup:
@@ -551,10 +551,10 @@ cat > "${CONFIG_DIR}/widgets.yaml" <<'YAML'
 
 # Two instances to demonstrate multi-city support
 - openmeteo:
-    label: Asuncion
-    latitude: -25.2637
-    longitude: -57.5759
-    timezone: America/Asuncion
+    label: London
+    latitude: 51.5074
+    longitude: -0.1278
+    timezone: Etc/UTC
     units: metric
     cache: 5
 
@@ -658,10 +658,10 @@ scripts:
     timeout: 30
     icon: mdi:refresh
 
-  restart-cloudflared:
+  restart-traefik:
     command: restart-container.sh
-    description: "Restart the cloudflared container"
-    args: ["cloudflared"]
+    description: "Restart the traefik container"
+    args: ["traefik"]
     timeout: 30
     requireConfirm: true
     icon: mdi:restart

@@ -270,7 +270,7 @@ widget:
 # EOF
 
 # Then add a cron job on the host:
-# */5 * * * * /opt/myserver/config/scripts/generate-metrics.sh
+# */5 * * * * /srv/myserver/config/scripts/generate-metrics.sh
 
 # Or trigger from a MyServer script card:
 # scripts:

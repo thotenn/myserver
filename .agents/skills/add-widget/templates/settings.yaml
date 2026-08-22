@@ -245,7 +245,7 @@ language: en
 # ═══════════════════════════════════════════════════════════════════════════════
 # EXAMPLE 15: Complete production config
 # ═══════════════════════════════════════════════════════════════════════════════
-title: thotenn.com
+title: My Dashboard
 theme: dark
 color: slate
 language: en

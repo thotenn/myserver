@@ -72,9 +72,9 @@ RUN chmod +x /app/docker-entrypoint.sh /app/myserver
 WORKDIR /app
 EXPOSE 3000
 
-# OCI labels — Coolify and registries surface these in the UI.
+# OCI labels — registries and PaaS UIs surface these.
 LABEL org.opencontainers.image.title="MyServer" \
-      org.opencontainers.image.description="Self-hosted dashboard for thotenn.com (Go rewrite)" \
+      org.opencontainers.image.description="Self-hosted dashboard (Go rewrite of Homepage)" \
       org.opencontainers.image.licenses="GPL-3.0" \
       org.opencontainers.image.source="https://github.com/thotenn/myserver"
 

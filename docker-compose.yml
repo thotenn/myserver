@@ -1,28 +1,35 @@
-# docker-compose.yml — Coolify Private App
+# docker-compose.yml — production deployment
 #
-# Deploy flow:
-#   1. Push this project as its own private GitHub repo (standalone, no subtree).
-#   2. In Coolify create "Private Application" → "Docker Compose" pointing at
-#      the repo via GitHub App.
-#   3. Coolify reads this compose, builds the image from the repo root
-#      (Dockerfile is next to this file), and deploys.
-#   4. Coolify will:
-#        - Auto-assign a random suffix to the container name
-#        - Prefix the volumes with the app ID hash
-#        - Inject its own network
-#        - Expose the host port defined in `ports:`
-#   5. Configure `HOMEPAGE_ALLOWED_HOSTS` and `HOMEPAGE_SCRIPTS_ENABLED` in
-#      the Coolify environment variable UI (NOT here).
-#   6. Point the Cloudflare Tunnel subdomain to `127.0.0.1:8085` on the host.
+# Works with plain `docker compose up -d` and with any PaaS that consumes a
+# Compose file (Dokploy, Coolify, CapRover, Portainer stacks, …). The image is
+# built from the Dockerfile next to this file.
+#
+# Deploy-specific values are NOT hardcoded here. Set them as environment
+# variables where you deploy (a `.env` next to this file, or your platform's
+# environment UI):
+#
+#   MYSERVER_HOST_PORT   host port to publish            (default 8085)
+#   MYSERVER_CONFIG_DIR  host dir holding the YAML config (default ./config)
+#   TZ                   container timezone              (default Etc/UTC)
+#
+#   HOMEPAGE_ALLOWED_HOSTS       comma-separated public hostnames, e.g.
+#                                `dashboard.example.com,dashboard.example.com:443`.
+#                                NOT wildcarded here on purpose — an unset value
+#                                allows localhost only.
+#   HOMEPAGE_SCRIPTS_ENABLED     `true` to expose the scripts feature.
+#   HOMEPAGE_ALLOW_PRIVATE_HOSTS `true` (default) lets widgets reach RFC1918
+#                                addresses, which is the normal case when the
+#                                dashboard shares a container network with the
+#                                services it monitors.
 #
 # Security notes:
-#   * `HOMEPAGE_SCRIPTS_ENABLED` is NOT set here — opt in explicitly via
-#     Coolify env vars. When enabled, the docker.sock mount becomes a
-#     container-escape vector if combined with an RCE in the script whitelist.
-#   * `HOMEPAGE_ALLOWED_HOSTS` is NOT wildcarded here. Set it in Coolify env
-#     to the public hostname (e.g. `htop.thotenn.com,htop.thotenn.com:443`).
-#   * The docker socket mount requires enabling "Allow Docker socket" in
-#     the Coolify service settings if it is restricted at the daemon level.
+#   * The dashboard has no internal auth — put an auth layer in front of it
+#     (see README, "Security model in one paragraph").
+#   * `HOMEPAGE_SCRIPTS_ENABLED` is deliberately unset here: opt in explicitly.
+#     When enabled, the docker.sock mount below becomes a container-escape
+#     vector if combined with an RCE in the script whitelist.
+#   * Some platforms restrict the docker socket at the daemon level and need it
+#     allowed per-service before the mount works.
 #
 services:
   myserver:
@@ -30,14 +37,11 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    # External port 8085 coexists with the original Homepage (Node) running
-    # on 8084 during migration. When the original is retired, switch to 8084
-    # and repoint the Cloudflare tunnel.
     ports:
-      - "8084:3000"
+      - "${MYSERVER_HOST_PORT:-8085}:3000"
     environment:
       - HOMEPAGE_CONFIG_DIR=/app/config
-      - TZ=America/Asuncion
+      - TZ=${TZ:-Etc/UTC}
       # Go runtime tuning — without these the runtime ignores the cgroup
       # limit (`memory: 256M` below) and RSS settles around ~135 MB because
       # GOGC=100 lets the heap double before collecting. GOMEMLIMIT makes the
@@ -45,20 +49,18 @@ services:
       # the OS; GOGC=50 grows the heap by +50% instead of +100% between GCs.
       - GOMEMLIMIT=80MiB
       - GOGC=50
-      # Override these via Coolify env UI:
-      #   HOMEPAGE_ALLOWED_HOSTS=htop.thotenn.com,htop.thotenn.com:443,localhost:3000
-      #   HOMEPAGE_SCRIPTS_ENABLED=true
-      #   HOMEPAGE_ALLOW_PRIVATE_HOSTS=true   # default; Coolify network is RFC1918
+      # Set these in your deployment environment, not here:
+      #   HOMEPAGE_ALLOWED_HOSTS, HOMEPAGE_SCRIPTS_ENABLED,
+      #   HOMEPAGE_ALLOW_PRIVATE_HOSTS
     extra_hosts:
-      # So the dashboard proxy can reach host services via 10.0.17.1
-      # (Docker gateway on Linux) or host.docker.internal.
+      # So the widget proxy can reach services on the host itself, via
+      # host.docker.internal or the Docker bridge gateway.
       - "host.docker.internal:host-gateway"
     volumes:
-      # Config YAML — bind mount from the host. The user edits files
-      # directly in /opt/myserver/config/ with their favorite editor;
-      # fsnotify inside the container detects changes and hot-reloads
-      # without restart.
-      - /opt/myserver/config:/app/config
+      # Config YAML — bind mount from the host. Edit the files on the host
+      # with your usual editor; fsnotify inside the container detects the
+      # change and hot-reloads without a restart.
+      - ${MYSERVER_CONFIG_DIR:-./config}:/app/config
       # Audit log + runtime data
       - myserver-data:/app/data
       # Docker socket — read/write so script wrappers can call

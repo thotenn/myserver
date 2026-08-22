@@ -61,8 +61,8 @@
 # EXAMPLE 7: Open-Meteo weather (no API key required)
 # ═══════════════════════════════════════════════════════════════════════════════
 - openmeteo:
-    latitude: -25.2637
-    longitude: -57.5759
+    latitude: 51.5074
+    longitude: -0.1278
     units: metric
     cache: 5              # minutes
 
@@ -81,8 +81,8 @@
 # EXAMPLE 9: OpenWeatherMap weather (requires API key)
 # ═══════════════════════════════════════════════════════════════════════════════
 - weather:
-    latitude: -25.2637
-    longitude: -57.5759
+    latitude: 51.5074
+    longitude: -0.1278
     apiKey: YOUR_OPENWEATHER_API_KEY
     units: metric
     cache: 5
@@ -148,8 +148,8 @@
     text: "Welcome back"
 
 - openmeteo:
-    latitude: -25.2637
-    longitude: -57.5759
+    latitude: 51.5074
+    longitude: -0.1278
     units: metric
     cache: 5
 
@@ -165,8 +165,8 @@
 # EXAMPLE 16: Two weather widgets (different cities)
 # ═══════════════════════════════════════════════════════════════════════════════
 - openmeteo:
-    latitude: -25.2637
-    longitude: -57.5759
+    latitude: 51.5074
+    longitude: -0.1278
     units: metric
     cache: 5
 

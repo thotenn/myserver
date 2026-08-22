@@ -166,7 +166,7 @@ Enabled with `HOMEPAGE_SCRIPTS_ENABLED=true`.
 
 ### Docker Compose
 
-- **Host bind mount** `/opt/myserver/config:/app/config` — user YAMLs, scripts (`config/scripts/`), and local data (`config/data/`)
+- **Host bind mount** `/srv/myserver/config:/app/config` — user YAMLs, scripts (`config/scripts/`), and local data (`config/data/`)
 - Mount `/var/run/docker.sock` — for Docker stats and script wrappers
 - Critical environment variables (set via your deployment UI, NOT in compose):
   - `HOMEPAGE_ALLOWED_HOSTS=your.domain.com,localhost:3000`

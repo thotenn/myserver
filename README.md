@@ -128,7 +128,7 @@ backgroundImage: wallpaper.jpg          # local file under config/ — or full U
 # config/widgets.yaml
 - search:    { provider: google }
 - datetime:  { format: { dateStyle: long, timeStyle: short } }
-- openmeteo: { latitude: -25.2637, longitude: -57.5759, units: metric }
+- openmeteo: { latitude: 51.5074, longitude: -0.1278, units: metric }
 - resources: { label: CPU, cpu: true, memory: true, disk: / }
 ```
 
@@ -142,8 +142,8 @@ Full schema, every widget type, env vars, and the icon resolver →
 ## Security model in one paragraph
 
 The dashboard ships **without internal auth** — production deployments put
-an external auth layer in front (Cloudflare Access in our case). The
-container itself enforces: host validation (`HOMEPAGE_ALLOWED_HOSTS`),
+an external auth layer in front (Cloudflare Access, Authelia, oauth2-proxy,
+…). The container itself enforces: host validation (`HOMEPAGE_ALLOWED_HOSTS`),
 same-origin CORS only on `/api/*`, per-IP token-bucket rate limiting,
 strict CSP + security headers (HSTS opt-in), an SSRF guard on the widget
 proxy with cloud-metadata-IP blocking, and recursive credential
@@ -162,9 +162,10 @@ Full details: [`docs/context/configuration.md#environment-variables`](docs/conte
 |---|---|
 | Add a service / bookmark / widget without touching Go | [Agent skill — `add-widget`](.agents/skills/add-widget/SKILL.md) + [`COOKBOOK.md`](.agents/skills/add-widget/COOKBOOK.md) |
 | Read the full YAML schema | [`docs/context/configuration.md`](docs/context/configuration.md) |
+| Copy a working config to start from | [`.agents/skills/add-widget/templates/`](.agents/skills/add-widget/templates/) · [`bootstrap-demo-config.sh`](bootstrap-demo-config.sh) |
 | Use the scripts feature | [`docs/context/scripts.md`](docs/context/scripts.md) |
 | Hit the HTTP API directly | [`docs/context/api.md`](docs/context/api.md) |
-| Deploy with Coolify, or run locally | [`docs/context/deploy.md`](docs/context/deploy.md) |
+| Deploy to production, or run locally | [`docs/context/deploy.md`](docs/context/deploy.md) |
 | Diagnose a broken widget / icon / hot-reload | [`docs/context/troubleshooting.md`](docs/context/troubleshooting.md) |
 | Understand the package layout and data flows | [`docs/context/architecture.md`](docs/context/architecture.md) · [`directories.md`](docs/context/directories.md) |
 | See what's changed | [`CHANGELOG.md`](CHANGELOG.md) |

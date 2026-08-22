@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -141,4 +142,107 @@ func TestConfigFile_PathTraversalRejected(t *testing.T) {
 // /api/config/{path} route.
 func newTestRouter() http.Handler {
 	return API(zap.NewNop(), 3000)
+}
+
+// TestServices_ConcurrentRequestsDoNotMutateCache is a regression test for a
+// data race: the handler used to sanitize the merged service list in place,
+// writing to the very slice stored in mergedServicesCache while concurrent
+// requests were serializing it. Run with -race to see the original failure.
+//
+// It also pins the observable contract the in-place version happened to get
+// right by luck — every response must be identical and fully sanitized, no
+// matter how many requests raced or which one populated the cache.
+func TestServices_ConcurrentRequestsDoNotMutateCache(t *testing.T) {
+	withTempConfig(t, map[string]string{
+		"services.yaml": `
+- Apps:
+    - Grafana:
+        href: https://user:pass@grafana.example.com
+        widget:
+          type: customapi
+          url: https://user:pass@grafana.example.com/api
+          key: super-secret-key
+          headers:
+            Authorization: Bearer nope
+    - Uptime:
+        href: https://uptime.example.com
+        widget:
+          type: customapi
+          url: https://uptime.example.com/api
+          apiKey: another-secret
+`,
+	})
+	config.ReloadCache()
+
+	const workers = 16
+	bodies := make([]string, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			rec := httptest.NewRecorder()
+			Services(rec, httptest.NewRequest(http.MethodGet, "/api/services", nil))
+			bodies[i] = rec.Body.String()
+		}(i)
+	}
+	wg.Wait()
+
+	for i, body := range bodies {
+		assert.Equal(t, bodies[0], body, "response %d differs — the shared slice was mutated mid-flight", i)
+		assert.NotContains(t, body, "super-secret-key")
+		assert.NotContains(t, body, "another-secret")
+		assert.NotContains(t, body, "Bearer nope")
+		assert.NotContains(t, body, "user:pass")
+	}
+
+	// The cached value must itself be sanitized and must survive being
+	// served repeatedly without being edited.
+	cached, ok := mergedServicesCache.Load().([]config.ServiceGroup)
+	require.True(t, ok, "cache not populated")
+	require.NotEmpty(t, cached)
+	for _, g := range cached {
+		for _, s := range g.Services {
+			require.NotNil(t, s.Widget)
+			assert.Empty(t, s.Widget.Key)
+			assert.Empty(t, s.Widget.APIKey)
+			assert.Nil(t, s.Widget.Headers)
+			assert.NotContains(t, s.Widget.URL, "user:pass")
+		}
+	}
+}
+
+// TestSanitizeServiceGroups_DoesNotTouchInput pins the copy semantics
+// directly: the input must come back untouched, so the config cache and the
+// merged list keep their credentials for the widget proxy to use.
+func TestSanitizeServiceGroups_DoesNotTouchInput(t *testing.T) {
+	in := []config.ServiceGroup{{
+		Name: "Apps",
+		Services: []config.Service{{
+			Name: "Grafana",
+			Widget: &config.WidgetConfig{
+				Type:    "customapi",
+				URL:     "https://user:pass@grafana.example.com/api",
+				Key:     "keep-me",
+				Headers: map[string]string{"Authorization": "Bearer keep-me"},
+			},
+		}},
+	}}
+
+	out := sanitizeServiceGroups(in)
+
+	// Output sanitized…
+	assert.Empty(t, out[0].Services[0].Widget.Key)
+	assert.Nil(t, out[0].Services[0].Widget.Headers)
+	assert.NotContains(t, out[0].Services[0].Widget.URL, "user:pass")
+	// …input intact. The proxy reads credentials from this very struct.
+	assert.Equal(t, "keep-me", in[0].Services[0].Widget.Key)
+	assert.NotNil(t, in[0].Services[0].Widget.Headers)
+	assert.Contains(t, in[0].Services[0].Widget.URL, "user:pass")
+	// Backing arrays must not be shared.
+	assert.NotSame(t, &in[0].Services[0], &out[0].Services[0])
+	assert.NotSame(t, in[0].Services[0].Widget, out[0].Services[0].Widget)
+
+	// nil in, nil out — the endpoint has always encoded that as JSON null.
+	assert.Nil(t, sanitizeServiceGroups(nil))
 }

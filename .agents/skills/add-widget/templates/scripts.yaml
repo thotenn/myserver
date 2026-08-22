@@ -124,7 +124,7 @@ scripts:
     timeout: 30
     icon: mdi:docker
     env:
-      HOME: /home/tho
+      HOME: /home/youruser
       XDG_RUNTIME_DIR: /run/user/1000
 
 ---

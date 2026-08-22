@@ -1,51 +1,66 @@
 # Deploy, Local Development & Testing
 
-> Three flows in one doc: production deploy with Coolify, local development
-> with `make dev` or `docker compose`, and the testing matrix.
+> Three flows in one doc: production deploy with Docker Compose (directly or
+> via a PaaS), local development with `make dev` or `docker compose`, and the
+> testing matrix.
 
 ---
 
-## Deploy with Coolify
+## Production deploy
+
+`docker-compose.yml` is deliberately deploy-agnostic: it works with plain
+`docker compose up -d` and with any platform that consumes a Compose file
+(Dokploy, Coolify, CapRover, Portainer stacks, …). Everything
+environment-specific is read from environment variables so nothing about your
+hosts lives in the repo.
 
 ### Initial setup
 
-1. Push the repo to GitHub (private is fine).
-2. Create a Private App in Coolify pointing to the repo via GitHub App.
-3. Coolify detects `docker-compose.yml` and runs the build + deploy.
-4. Create the host config directory:
+1. Push the repo to a git remote (private is fine) — or clone it on the host.
+2. If you use a PaaS, create an app of type "Docker Compose" pointing at the
+   repo. It reads `docker-compose.yml` and builds the image from the
+   `Dockerfile` at the repo root.
+3. Create the host config directory:
 
    ```bash
-   sudo mkdir -p /opt/myserver/config
-   sudo chown $(id -u):$(id -g) /opt/myserver/config
+   sudo mkdir -p /srv/myserver/config
+   sudo chown $(id -u):$(id -g) /srv/myserver/config
    ```
 
-5. Copy skeletons and edit:
+4. Copy the skeletons and edit them:
 
    ```bash
-   cp internal/config/skeleton/*.yaml /opt/myserver/config/
-   $EDITOR /opt/myserver/config/{services,settings,widgets,bookmarks,docker}.yaml
+   cp internal/config/skeleton/*.yaml /srv/myserver/config/
+   $EDITOR /srv/myserver/config/{services,settings,widgets,bookmarks,docker}.yaml
    ```
 
-6. Configure environment in Coolify:
+5. Configure the environment (a `.env` next to the compose file, or your
+   platform's environment UI):
 
    ```
-   HOMEPAGE_ALLOWED_HOSTS=htop.thotenn.com,localhost:3000
-   HOMEPAGE_SCRIPTS_ENABLED=true     # optional
-   TZ=America/Asuncion
+   MYSERVER_CONFIG_DIR=/srv/myserver/config        # host dir from step 3
+   MYSERVER_HOST_PORT=8085                         # published host port
+   TZ=Etc/UTC
+   HOMEPAGE_ALLOWED_HOSTS=dashboard.example.com,dashboard.example.com:443
+   HOMEPAGE_SCRIPTS_ENABLED=true                   # optional
    ```
 
-7. Cloudflare Tunnel: point `htop.thotenn.com` at port 3000 of the
-   container.
+   `HOMEPAGE_ALLOWED_HOSTS` is not wildcarded by default: if you leave it
+   unset, only localhost is accepted and your public hostname returns 400.
 
-> **You never need to shell into the container.** `config/` is a host
-> bind mount; edit on the host and `fsnotify` reloads in the container
-> automatically.
+6. Point your reverse proxy / tunnel at the published port, and **put an auth
+   layer in front of it** — the dashboard has no internal auth (see
+   [Security model](../../README.md#security-model-in-one-paragraph)).
+
+> **You never need to shell into the container.** The config directory is a
+> host bind mount; edit on the host and `fsnotify` reloads inside the
+> container automatically.
 
 ### Volumes
 
 | Host | Container | Purpose |
 |---|---|---|
-| `/opt/myserver/config` | `/app/config` | User YAML + scripts + data (bind mount, hot-reload). |
+| `$MYSERVER_CONFIG_DIR` | `/app/config` | User YAML + scripts + data (bind mount, hot-reload). |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Docker stats + script wrappers. |
 
 Mount the socket `:ro` when scripts don't need to mutate containers.
@@ -72,8 +87,9 @@ healthcheck:
   start_period: 10s
 ```
 
-Coolify uses this for unhealthy-container detection and zero-downtime
-restarts.
+Orchestrators use this for unhealthy-container detection and zero-downtime
+restarts. `/api/healthcheck` is the one endpoint that must stay reachable
+without auth.
 
 ---
 

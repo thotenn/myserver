@@ -9,7 +9,7 @@
 #      by detecting the socket's GID and adding the user to a matching
 #      group on the fly. This avoids hardcoding the host's docker group GID
 #      which varies between distros (Debian/Ubuntu usually 999, RHEL/Fedora
-#      varies, Coolify hosts tend to be Ubuntu).
+#      varies).
 #   3. Seed /app/config from /app/skeleton on first boot if the config
 #      volume is empty so the dashboard works out of the box without
 #      manual setup.

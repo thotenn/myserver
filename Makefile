@@ -53,7 +53,7 @@ docker-run: docker-build
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-e HOMEPAGE_CONFIG_DIR=/app/config \
 		-e HOMEPAGE_ALLOWED_HOSTS='localhost:3000' \
-		-e TZ=America/Asuncion \
+		-e TZ=Etc/UTC \
 		$(DOCKER_IMAGE)
 
 tidy: ## Run go mod tidy

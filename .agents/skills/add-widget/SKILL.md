@@ -39,7 +39,7 @@ config/
   custom.js          # injected before </body>
 ```
 
-By default the directory is at `/opt/myserver/config/` on the host, mounted to
+By default the directory is at `/srv/myserver/config/` on the host, mounted to
 `/app/config` inside the container.
 
 ---
@@ -261,7 +261,7 @@ Make the file executable on the host: `chmod +x config/scripts/backup.sh`.
 
 ```yaml
 env:
-  HOME: /home/tho                                # podman reads ~/.config/containers
+  HOME: /home/youruser                                # podman reads ~/.config/containers
   XDG_RUNTIME_DIR: /run/user/1000
   DOCKER_HOST: unix:///run/user/1000/podman/podman.sock
 ```
@@ -368,10 +368,10 @@ Notes:
     text_size: lg
 
 - openmeteo:                  # weather, no API key needed
-    label: Asuncion
-    latitude: -25.2637
-    longitude: -57.5759
-    timezone: America/Asuncion
+    label: London
+    latitude: 51.5074
+    longitude: -0.1278
+    timezone: Etc/UTC
     units: metric
     cache: 5                  # minutes between fetches
 

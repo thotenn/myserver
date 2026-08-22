@@ -28,7 +28,9 @@
 #
 set -euo pipefail
 
-cd "$(dirname "$(readlink -f "$0")")"
+# `readlink -f` is GNU-only — BSD readlink (macOS) has no -f and the script dies
+# on its first line. dirname + `pwd -P` resolves the same thing on any platform.
+cd "$(cd "$(dirname "$0")" && pwd -P)"
 if [ ! -f Makefile ] || [ ! -d internal/config/skeleton ]; then
   echo "ERROR: run this from the myserver repo root" >&2
   exit 1

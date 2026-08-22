@@ -239,8 +239,11 @@ See `workflow.md` for details. Summary:
 
 ## 13. Config Validation
 
-- `GET /api/validate` — loads and parses all YAMLs (`services`, `bookmarks`, `widgets`, `settings`) and returns parse errors if any.
+- `GET /api/validate` — loads and parses `services`, `bookmarks`, `widgets` and `settings`, returning parse errors if any.
 - Useful for verifying config before deployment.
+- Errors keep the YAML detail (`line 12: did not find expected key`) but have filesystem paths scrubbed: handlers must not describe the container's layout. The full error goes to the log.
+- **`auth.yaml` is not included.** Its validation errors name environment variables, which would turn a config check into an environment probe. The auth policy's state is reported in the startup and hot-reload logs instead.
+- **Not a strict parser.** Go's `yaml.v3` accepts ambiguous input like `key:{flow}` (no space after the colon) and silently produces the wrong shape, so a config can pass this check and still break downstream. Run a strict YAML linter as well.
 
 **Implementation:** `internal/handlers/validate.go`
 

@@ -121,6 +121,7 @@ func SanitizeService(s Service) Service {
 	clean := s
 	clean.Href = sanitizeURL(clean.Href)
 	clean.SiteMonitor = sanitizeURL(clean.SiteMonitor)
+	clean.Labels = sanitizeLabels(clean.Labels)
 	if clean.Widget != nil {
 		w := *clean.Widget
 		w.Key = ""
@@ -143,6 +144,37 @@ func SanitizeService(s Service) Service {
 			w.Options = cleanOpts
 		}
 		clean.Widget = &w
+	}
+	return clean
+}
+
+// sanitizeLabels drops label entries whose key looks like a credential and
+// strips basic-auth from any label that holds a URL.
+//
+// Labels are free-form operator text: nothing stops someone writing
+// `labels: {api_key: hunter2}` in services.yaml, and without this the value
+// would be published verbatim by /api/services. Docker discovery never
+// populates this field, so hand-written YAML is the only way in — which is
+// exactly why it is easy to forget.
+//
+// Returns a fresh map: the input belongs to the shared config cache and the
+// widget proxy reads the originals.
+func sanitizeLabels(labels map[string]string) map[string]string {
+	if len(labels) == 0 {
+		return labels
+	}
+	clean := make(map[string]string, len(labels))
+	for k, v := range labels {
+		if IsSensitiveKey(k) {
+			continue
+		}
+		// Only touch values that are actually URLs; url.Parse accepts almost
+		// any string and round-tripping arbitrary text through it would
+		// rewrite escapes in labels that were never URLs.
+		if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+			v = sanitizeURL(v)
+		}
+		clean[k] = v
 	}
 	return clean
 }

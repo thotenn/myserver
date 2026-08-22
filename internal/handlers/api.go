@@ -72,7 +72,7 @@ func setupRoutes(r chi.Router, logger *zap.Logger, port int) {
 		r.Get("/widgets", Widgets)
 		r.Get("/config/{path}", ConfigFile)
 		r.Post("/reload", Reload)
-		r.Get("/validate", Validate)
+		r.Get("/validate", Validate(logger))
 
 		// Stubs — disabled until real implementation
 		// r.Get("/releases", Releases)

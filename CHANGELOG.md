@@ -53,6 +53,33 @@ extension, not a compatibility break: Homepage never reads that file.
 - Docs: [`docs/context/authentication.md`](docs/context/authentication.md), plus
   a README section and `/auth/*` in the API reference.
 
+### Fixed — four defects found while auditing the docs against the code
+
+- **`Service.Labels` was published unsanitized.** `SanitizeService` scrubbed
+  every other field but skipped the `labels` map, so a service written with
+  `labels: {api_key: hunter2}` in `services.yaml` returned that value verbatim
+  from `/api/services`. Labels now drop sensitive keys and strip basic-auth
+  from URL values; non-URL values are returned byte for byte, and the caller's
+  map is never mutated (it is shared with the config cache and the widget
+  proxy).
+- **`/api/validate` reported broken config as valid.** It asked the cached
+  loaders, and `ReloadCache` fills that cache with `c.Services, _ =
+  loadServices()` — discarding the error and storing nil. In a running process
+  the endpoint therefore answered `{"valid": true}` for a `services.yaml` it
+  had failed to parse, which is precisely backwards. It now re-reads from disk
+  (`config.ValidateFromDisk`) and covers `docker.yaml`, `proxmox.yaml` and
+  `scripts.yaml` as well.
+- **`/api/validate` also leaked filesystem paths.** It returned the raw loader
+  error, which wraps `os.ReadFile` and names the absolute config path. The
+  parse error is still reported — it is what makes the endpoint useful — but
+  the path is scrubbed and the full error goes to the log. `auth.yaml` is
+  deliberately excluded from this report: its validation errors name
+  environment variables.
+- **Dead widget alias.** `hoarder` was aliased to `karakeep`, which was never
+  registered, so `hoarder` resolved to nothing while looking supported. The
+  alias was removed, and a test now fails on any alias whose target is not a
+  registered widget.
+
 ### Fixed — documented environment variables that did not exist
 
 Two variables were documented under names the code never reads. Anyone who

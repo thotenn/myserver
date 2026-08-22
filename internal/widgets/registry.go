@@ -161,11 +161,15 @@ var builtinWidgets = []WidgetDef{
 }
 
 // builtinAliases maps alias names to their canonical widget type.
+//
+// Every target must be a registered widget: Get() rewrites the name and then
+// looks it up, so an alias pointing at nothing resolves to "unknown widget"
+// with no hint that the alias itself is the problem. `hoarder` -> `karakeep`
+// used to sit here without a `karakeep` widget behind it.
 var builtinAliases = map[string]string{
 	"jellyseerr":     "overseerr",
 	"seerr":          "overseerr",
 	"openweathermap": "weather",
-	"hoarder":        "karakeep",
 }
 
 // nopHandler is a no-op proxy handler for widgets that use the generic handler.

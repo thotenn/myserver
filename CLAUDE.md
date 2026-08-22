@@ -91,10 +91,16 @@ make up | down | logs   # docker compose wrappers
   `maxTimeout`, `defaultTimeout`, `maxConcurrent` require a process restart.
 - Env substitution: `{{HOMEPAGE_VAR_X}}` → env value, `{{HOMEPAGE_FILE_X}}` →
   file contents. If unresolved, the placeholder is kept literally (fail-visible).
-- **`/api/validate` is too lenient.** Go's `yaml.v3` accepts ambiguous syntax
-  like `key:{flow}` (missing space after `:`) and silently produces the
-  wrong shape. Strict YAML parsers reject it. When debugging "config parses
-  but downstream is empty", run a strict linter (`python -c "import yaml; …"`).
+- **`/api/validate` re-reads from disk on purpose** (`config.ValidateFromDisk`).
+  It must never be rebuilt on the cached loaders: `ReloadCache` discards their
+  errors (`c.Services, _ = loadServices()`), so a cache-backed check answers
+  `valid: true` for a file it failed to parse. That was the behaviour until it
+  was fixed.
+- **`/api/validate` is still not a strict parser.** Go's `yaml.v3` accepts
+  ambiguous syntax like `key:{flow}` (missing space after `:`) and silently
+  produces the wrong shape. Strict YAML parsers reject it. When debugging
+  "config parses but downstream is empty", run a strict linter
+  (`python -c "import yaml; …"`).
 
 ### Scripts feature (opt-in)
 
@@ -178,7 +184,10 @@ make up | down | logs   # docker compose wrappers
 - Credential sanitization: `/api/widgets` and `/api/services` deep-strip keys
   matched by `IsSensitiveKey` (case-insensitive substring) and remove
   basic-auth userinfo + sensitive query params from **every** URL-bearing
-  field — `widget.url`, `href` and `siteMonitor`. The HTML dashboard renders
+  field — `widget.url`, `href` and `siteMonitor`. `Service.Labels` goes
+  through `sanitizeLabels`: sensitive keys dropped, URL values scrubbed,
+  non-URL values returned byte for byte (round-tripping arbitrary text
+  through `url.Parse` would rewrite escapes). The HTML dashboard renders
   from `config.LoadServices()` and is not affected by this stripping.
 - `handlers.Services` caches an **already sanitized** copy. Never
   post-process the cached slice in place: it is shared across requests, so
@@ -208,7 +217,10 @@ make up | down | logs   # docker compose wrappers
 - Templates consume `config.Service`, `config.ServiceGroup`, etc. directly.
 - i18n: `T(lang, "key")` with hardcoded maps in `internal/templates/i18n.go`.
 - Handlers return generic messages to clients; log details internally. Never
-  leak paths, stack traces, or upstream URLs.
+  leak paths, stack traces, or upstream URLs. `/api/validate` keeps the YAML
+  parse error (it is what makes the endpoint useful) but runs it through
+  `scrubConfigPaths` first, and `auth.yaml` is deliberately excluded from that
+  report — its errors name environment variables.
 - Don't break the `internal/config → everything else` dependency direction.
 
 ---
@@ -240,3 +252,7 @@ make up | down | logs   # docker compose wrappers
 - Dockerfile installs `templ@latest`; if it ever drifts ahead of the runtime
   pinned in `go.mod`, the build breaks. Currently pinned to `v0.3.1001` via
   the `TEMPL_VERSION` build arg — bump in lockstep with `go.mod`.
+- `karakeep` has no widget definition. The `hoarder` alias that pointed at it
+  was removed; if the widget is ever added, restore the alias. Aliases are
+  covered by `TestBuiltinAliasesResolve`, which fails on a target that is not
+  registered.

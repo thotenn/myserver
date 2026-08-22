@@ -21,7 +21,7 @@ Handlers do **content negotiation** via the `HX-Request` header:
 | GET  | `/api/services` | Sanitized services (config + Docker discovery merged). | — |
 | GET  | `/api/bookmarks` | Bookmarks. | — |
 | GET  | `/api/widgets` | Sanitized info widgets (credentials stripped). | — |
-| GET  | `/api/validate` | Parse all YAMLs; report errors. | — |
+| GET  | `/api/validate` | Parse `services` / `bookmarks` / `widgets` / `settings`; report parse errors with filesystem paths scrubbed. Excludes `auth.yaml` (its errors name env vars). | — |
 | GET  | `/api/config/{path}` | Serve whitelisted file from config dir. | — |
 
 ---

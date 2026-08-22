@@ -501,3 +501,79 @@ allowlist:
 	router.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusForbidden, rec.Code, "the allowlist still decides")
 }
+
+// /api/validate used to return the raw loader error, which wraps os.ReadFile
+// and therefore carries the absolute config-dir path — handlers must not
+// describe the container's filesystem layout.
+func TestValidate_DoesNotLeakFilesystemPaths(t *testing.T) {
+	dir := withTempConfig(t, map[string]string{
+		// Invalid YAML: the loader fails and the error names the file.
+		"services.yaml": "- Group:\n    - Svc:\n        href: [unclosed\n",
+	})
+	config.ResetAuthState()
+	// Populate the cache exactly as a running process does — ReloadCache
+	// discards the load error and stores nil. A validation endpoint reading
+	// from the cache would report this broken file as valid, so this call is
+	// what makes the test resemble production.
+	config.ReloadCache()
+	t.Cleanup(func() {
+		config.ResetAuthState()
+		config.ResetCache()
+		config.SetCurrentHash("")
+	})
+
+	req := newRequest(http.MethodGet, "/api/validate")
+	rec := httptest.NewRecorder()
+	API(zap.NewNop(), 3000).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	require.Equal(t, http.StatusBadRequest, rec.Code, "broken YAML should fail validation")
+
+	assert.NotContains(t, body, dir, "the absolute config path leaked: %s", body)
+	assert.NotContains(t, body, "/app/config", "container layout leaked")
+	// The useful part survives: the operator still learns which file is broken.
+	assert.Contains(t, body, "services.yaml")
+}
+
+// The endpoint must read from disk. Backed by the cached loaders it answered
+// `valid: true` for a file it had failed to parse, because ReloadCache stores
+// nil and drops the error.
+func TestValidate_ReportsBrokenFileEvenWithWarmCache(t *testing.T) {
+	withTempConfig(t, map[string]string{
+		"services.yaml": "- Group:\n    - Svc:\n        href: [unclosed\n",
+	})
+	config.ResetAuthState()
+	config.ReloadCache() // the cache now holds nil services and no error
+	t.Cleanup(func() {
+		config.ResetAuthState()
+		config.ResetCache()
+		config.SetCurrentHash("")
+	})
+
+	require.Nil(t, config.GetCachedConfig().Services,
+		"precondition: the cache swallowed the parse error")
+
+	req := newRequest(http.MethodGet, "/api/validate")
+	rec := httptest.NewRecorder()
+	API(zap.NewNop(), 3000).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code,
+		"a broken services.yaml must not be reported as valid: %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "services.yaml")
+}
+
+func TestScrubConfigPaths(t *testing.T) {
+	config.SetConfigDir("/app/config")
+	t.Cleanup(config.ResetConfigDir)
+
+	cases := map[string]string{
+		"reading config services.yaml: open /app/config/services.yaml: no such file": "reading config services.yaml: open services.yaml: no such file",
+		"open /var/secrets/other.yaml: permission denied":                            "open other.yaml: permission denied",
+		"yaml: line 12: did not find expected key":                                   "yaml: line 12: did not find expected key",
+	}
+	for in, want := range cases {
+		if got := scrubConfigPaths(in); got != want {
+			t.Errorf("scrubConfigPaths(%q)\n  = %q\n want %q", in, got, want)
+		}
+	}
+}

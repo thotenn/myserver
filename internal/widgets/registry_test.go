@@ -122,3 +122,20 @@ func TestEndpointMappings(t *testing.T) {
 	assert.True(t, hasCPU)
 	assert.True(t, hasMemory)
 }
+
+// Every alias must resolve to a registered widget. An alias pointing at a
+// type that was never registered silently degrades to "unknown widget":
+// Get() rewrites the name, the lookup misses, and nothing says the alias is
+// at fault. `hoarder` -> `karakeep` shipped broken this way.
+func TestBuiltinAliasesResolve(t *testing.T) {
+	RegisterBuiltinWidgets()
+
+	for alias, target := range builtinAliases {
+		if _, ok := DefaultRegistry.Get(target); !ok {
+			t.Errorf("alias %q points at %q, which is not a registered widget", alias, target)
+		}
+		if _, ok := DefaultRegistry.Get(alias); !ok {
+			t.Errorf("alias %q does not resolve", alias)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,4 +82,62 @@ func TestSanitizeService(t *testing.T) {
 	assert.Empty(t, clean.Widget.Key)
 	assert.Empty(t, clean.Widget.Username)
 	assert.Empty(t, clean.Widget.Password)
+}
+
+// Labels are free-form operator text and were previously published verbatim,
+// so a secret written there leaked through /api/services.
+func TestSanitizeService_Labels(t *testing.T) {
+	in := Service{
+		Name: "App",
+		Labels: map[string]string{
+			"api_key":     "hunter2",
+			"token":       "abc123",
+			"PASSWORD":    "s3cr3t",
+			"environment": "production",
+			"owner":       "platform-team",
+			"dashboard":   "https://user:pw@dash.example.com/x?apikey=leak",
+			"note":        "a:b{c} not a url",
+		},
+	}
+
+	out := SanitizeService(in)
+
+	for _, secret := range []string{"hunter2", "abc123", "s3cr3t", "pw", "leak"} {
+		for k, v := range out.Labels {
+			if strings.Contains(v, secret) {
+				t.Errorf("label %q leaked %q: %q", k, secret, v)
+			}
+		}
+	}
+	for _, k := range []string{"api_key", "token", "PASSWORD"} {
+		if _, ok := out.Labels[k]; ok {
+			t.Errorf("sensitive label %q should have been dropped", k)
+		}
+	}
+	if out.Labels["environment"] != "production" || out.Labels["owner"] != "platform-team" {
+		t.Errorf("harmless labels must survive: %+v", out.Labels)
+	}
+	// Non-URL values must come back byte for byte: round-tripping arbitrary
+	// text through url.Parse would rewrite escapes.
+	if out.Labels["note"] != "a:b{c} not a url" {
+		t.Errorf("non-URL label was rewritten: %q", out.Labels["note"])
+	}
+	if got := out.Labels["dashboard"]; got != "https://dash.example.com/x" {
+		t.Errorf("URL label = %q, want credentials stripped", got)
+	}
+
+	// The caller's map is shared with the config cache and the widget proxy.
+	if in.Labels["api_key"] != "hunter2" {
+		t.Error("sanitizing must not mutate the input map")
+	}
+	if len(in.Labels) != 7 {
+		t.Errorf("input map lost entries: %d", len(in.Labels))
+	}
+}
+
+func TestSanitizeService_NilLabels(t *testing.T) {
+	out := SanitizeService(Service{Name: "App"})
+	if out.Labels != nil {
+		t.Errorf("nil labels must stay nil, got %+v", out.Labels)
+	}
 }

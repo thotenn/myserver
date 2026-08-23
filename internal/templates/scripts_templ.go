@@ -34,9 +34,9 @@ func Scripts(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("/static/js/theme.js?v=" + data.AssetVersion)
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(staticURL(ctx, "/static/js/theme.js", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 4, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 4, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -47,15 +47,28 @@ func Scripts(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("/static/js/app.js?v=" + data.AssetVersion)
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(staticURL(ctx, "/static/js/app.js", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 5, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 5, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"></script><script src=\"/api/config/custom.js\" defer></script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"></script><script src=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(configFileURL(ctx, "custom.js"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 6, Col: 46}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" defer></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

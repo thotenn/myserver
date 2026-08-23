@@ -43,8 +43,8 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 					}
 					<div class="flex flex-wrap items-center gap-2 mt-1 text-[11px] min-w-0">
 						if svc.Container != "" && svc.Server != "" {
-							<div hx-get={ dockerStatusURL(svc.Container, svc.Server) }
-								hx-trigger="load, every 15s [document.visibilityState === 'visible']"
+							<div hx-get={ dockerStatusURL(ctx, svc.Container, svc.Server) }
+								hx-trigger="load, every 15s"
 								hx-swap="innerHTML"
 								hx-target="this"
 								class="flex flex-wrap items-center gap-1 min-w-0">
@@ -52,8 +52,8 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 								<span class="text-theme-400">…</span>
 							</div>
 						} else if svc.Ping != "" {
-							<div hx-get={ pingURL(groupName, svc.Name) }
-								hx-trigger="load, every 60s [document.visibilityState === 'visible']"
+							<div hx-get={ pingURL(ctx, groupName, svc.Name) }
+								hx-trigger="load, every 60s"
 								hx-swap="innerHTML"
 								hx-target="this"
 								class="flex flex-wrap items-center gap-1 min-w-0">
@@ -61,8 +61,8 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 								<span class="text-theme-400">…</span>
 							</div>
 						} else if svc.SiteMonitor != "" {
-							<div hx-get={ siteMonitorURL(groupName, svc.Name) }
-								hx-trigger="load, every 60s [document.visibilityState === 'visible']"
+							<div hx-get={ siteMonitorURL(ctx, groupName, svc.Name) }
+								hx-trigger="load, every 60s"
 								hx-swap="innerHTML"
 								hx-target="this"
 								class="flex flex-wrap items-center gap-1 min-w-0">
@@ -76,8 +76,8 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 			<!-- Docker stats row (CPU / MEM / RX / TX) -->
 			if svc.Container != "" && svc.Server != "" {
 				<div class="mt-3 pt-2 border-t border-theme-100 dark:border-theme-700"
-					hx-get={ dockerStatsURL(svc.Container, svc.Server) }
-					hx-trigger="load, every 5s [document.visibilityState === 'visible']"
+					hx-get={ dockerStatsURL(ctx, svc.Container, svc.Server) }
+					hx-trigger="load, every 5s"
 					hx-swap="innerHTML"
 					hx-target="this">
 					@DockerStatsPlaceholder()

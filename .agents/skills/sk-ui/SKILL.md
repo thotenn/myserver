@@ -3,11 +3,13 @@
 Expert skill for changing **the dashboard's own UI code**: Templ components, the
 Tailwind layer, the HTMX wiring and the Go handlers that render HTML.
 
-> **This is the developer-facing skill.** Its companion, `add-widget/`, is for
-> the *operator* who configures a running instance through YAML and never writes
-> Go. If a request can be satisfied by editing `config/*.yaml`, it belongs
-> there — stop and say so. Come here only when the answer is new markup, new
-> styles, or a new server-rendered fragment.
+> **This is the developer-facing skill.** Its companions are for the *operator*
+> who configures a running instance through YAML and never writes Go:
+> `add-widget/` for the content of a dashboard, `sk-clients/` for the dashboards
+> themselves (several on one hostname, URL prefixes, per-dashboard auth). If a
+> request can be satisfied by editing `config/*.yaml`, it belongs there — stop
+> and say so. Come here only when the answer is new markup, new styles, or a new
+> server-rendered fragment.
 
 ---
 
@@ -47,6 +49,7 @@ internal/templates/
                       status/stats, dynamic lists
   login.templ         the auth pages, deliberately a separate shell
   scripts.templ       the <script> tags at the end of <body>
+  search.go           the search form's action: provider -> engine URL
 
   types.go            PageData, AuthPageData, TabGroup, DynamicListItem
   styles.go           inline-style helpers: gridColumns, barWidth, background
@@ -59,8 +62,9 @@ internal/templates/
 web/tailwind/input.css   the ONLY stylesheet source you edit
 web/static/css/main.css  BUILD OUTPUT — never edit by hand (it is committed)
 web/static/css/themes.css  the 23 colour themes as CSS variables
-web/static/js/app.js     widgets, search, hot reload, icon errors
-web/static/js/theme.js   early theme application (runs before paint)
+web/static/js/app.js     widgets, search, hot reload, icon errors, poll pause
+web/static/js/theme.js   the theme toggle
+web/static/js/theme-init.js  applies the stored theme before the first paint
 ```
 
 ---
@@ -100,11 +104,23 @@ Templ emits those blocks literally, so `{ data.Foo }` ships as the characters
 `app.js` — that is why `DatetimeWidget` carries `data-locale` and
 `GreetingWidget` carries four `data-*` strings.
 
-### 5. The CSP forbids inline handlers
+### 5. The CSP forbids inline handlers — and inline scripts, and eval
 
 `script-src 'self' unpkg.com cdn.jsdelivr.net`. No `onclick`, `onsubmit`,
 `onerror`. Attach listeners in `app.js` with `addEventListener` — that is why
 `setupIconErrors()` exists instead of an inline `onerror`.
+
+The same directive blocks two things that are easy to write by accident:
+
+- **An inline `<script>` body.** The early theme script was inline in
+  `head.templ` and never ran: the flash it prevents was back, and every page
+  logged a violation. It is `web/static/js/theme-init.js` now, loaded blocking
+  from `<head>`.
+- **An `hx-trigger` filter.** `every 30s [document.visibilityState === 'visible']`
+  is compiled by htmx with `new Function(...)`, which needs `'unsafe-eval'`.
+  Each polled element logged an `EvalError` and lost its filter, so hidden tabs
+  polled anyway. Keep `hx-trigger` free of `[...]`; conditions go in `app.js`
+  (see the `htmx:beforeRequest` guard).
 
 ### 6. Dynamic attributes use `attr={ expr }`
 
@@ -152,9 +168,17 @@ different questions; do not merge them.
 
 ### 12. Never build an API URL by string concatenation
 
-Use the builders in `urls.go`. Service and group names come from user YAML and
-routinely contain `&`, `=` and spaces. Every builder escapes with
-`url.QueryEscape` or `url.PathEscape`; a new endpoint gets a new builder there.
+Use the builders in `urls.go`. Two reasons, both load-bearing:
+
+- Service and group names come from user YAML and routinely contain `&`, `=`
+  and spaces. Every builder escapes with `url.QueryEscape` or `url.PathEscape`.
+- The dashboard can be served under a base path (`HOMEPAGE_BASE_PATH=/team`),
+  and the builders are what add it. A literal `"/api/…"` in a template works
+  perfectly at the root and 404s under a prefix.
+
+Every builder takes `ctx` as its first argument — inside a `templ` component
+`ctx` is in scope, so pass it straight through: `pingURL(ctx, groupName,
+svc.Name)`. A new endpoint gets a new builder there, prefixed the same way.
 
 ### 13. If a class does not render, it was not scanned
 

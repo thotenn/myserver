@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -64,7 +65,7 @@ type ResourceBarData struct {
 // `..`, or backslashes) return an empty string so the caller can omit the
 // background entirely. This protects against breaking out of the CSS
 // quoting context.
-func backgroundImageURL(raw, hash string) string {
+func backgroundImageURL(ctx context.Context, raw, hash string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
@@ -95,9 +96,9 @@ func backgroundImageURL(raw, hash string) string {
 	}
 	encoded := strings.Join(parts, "/")
 	if hash == "" {
-		return "/api/config/" + encoded
+		return configFileURL(ctx, encoded)
 	}
-	return "/api/config/" + encoded + "?v=" + url.QueryEscape(hash)
+	return configFileURL(ctx, encoded) + "?v=" + url.QueryEscape(hash)
 }
 
 // backgroundStyle returns the full CSS declaration block applied to <body>
@@ -109,11 +110,11 @@ func backgroundImageURL(raw, hash string) string {
 // translucent overlay applied through the existing `.bg-theme-50 /
 // .dark:bg-theme-900` body classes, which already have a non-zero alpha
 // from the colour palette.
-func backgroundStyle(settings *config.Settings, hash string) templ.SafeCSS {
+func backgroundStyle(ctx context.Context, settings *config.Settings, hash string) templ.SafeCSS {
 	if settings == nil {
 		return ""
 	}
-	u := backgroundImageURL(settings.BackgroundImage, hash)
+	u := backgroundImageURL(ctx, settings.BackgroundImage, hash)
 	if u == "" {
 		return ""
 	}

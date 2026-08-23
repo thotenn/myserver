@@ -49,15 +49,15 @@ func WidgetContainer(svc config.Service, groupName string, lang string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(proxyURL(groupName, svc.Name, "default"))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(proxyURL(ctx, groupName, svc.Name, "default"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 9, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 9, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-trigger=\"load, every 30s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\"><span class=\"htmx-indicator text-xs text-theme-400\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-trigger=\"load, every 30s\" hx-swap=\"innerHTML\" hx-target=\"this\"><span class=\"htmx-indicator text-xs text-theme-400\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -52,6 +52,17 @@
   }
 
   // ---------------------------------------------------------------------
+  // Base path: the dashboard can be served under a URL prefix, so any URL
+  // built here has to carry it. It arrives as a <meta> tag because Templ
+  // emits interpolations inside <script> literally — same reason the
+  // datetime and greeting widgets read data-* attributes.
+  // ---------------------------------------------------------------------
+  function basePath() {
+    var meta = document.querySelector('meta[name="base-path"]');
+    return (meta && meta.getAttribute('content')) || '';
+  }
+
+  // ---------------------------------------------------------------------
   // Config hot-reload: poll /api/hash every 10s, refresh when changed.
   // Stops polling when the tab is hidden to save battery/CPU.
   // ---------------------------------------------------------------------
@@ -64,7 +75,7 @@
     function startPolling() {
       if (intervalId) return;
       intervalId = setInterval(function () {
-        fetch('/api/hash', { credentials: 'same-origin' })
+        fetch(basePath() + '/api/hash', { credentials: 'same-origin' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (data && data.hash && data.hash !== initial) {
@@ -97,6 +108,22 @@
   // ---------------------------------------------------------------------
   function setupHTMX() {
     if (typeof htmx === 'undefined') return;
+    // Pause polling while the tab is hidden.
+    //
+    // This used to live in the markup as
+    // `hx-trigger="every 30s [document.visibilityState === 'visible']"`, but
+    // htmx compiles a trigger filter with `new Function(...)`, and the CSP
+    // (`script-src 'self'`, no 'unsafe-eval') blocks that: every polled
+    // element logged an EvalError on load and lost its filter, so the page
+    // kept polling in a hidden tab anyway — the opposite of the intent, plus
+    // a console full of violations. Doing the check here needs no eval.
+    document.body.addEventListener('htmx:beforeRequest', function (evt) {
+      if (!document.hidden) return;
+      var trigger = evt.detail.elt && evt.detail.elt.getAttribute('hx-trigger');
+      if (trigger && trigger.indexOf('every ') !== -1) {
+        evt.preventDefault();
+      }
+    });
     document.body.addEventListener('htmx:responseError', function (evt) {
       evt.target.classList.add('widget-error');
       setTimeout(function () {
@@ -220,10 +247,20 @@
         '_blank',
       );
     } else {
-      window.open(
-        'https://www.google.com/search?q=' + encodeURIComponent(query),
-        '_blank',
-      );
+      // The engine comes from the form itself — its action and the input's
+      // name are rendered server-side from `widgets.yaml: search`. Hardcoding
+      // Google here is what made the `provider:` setting do nothing.
+      var form = document.getElementById('search-form');
+      var action = (form && form.getAttribute('action')) || 'https://www.google.com/search';
+      var param = input.getAttribute('name') || 'q';
+      var target = (form && form.getAttribute('target')) || '_self';
+      var url = action + (action.indexOf('?') === -1 ? '?' : '&') +
+        param + '=' + encodeURIComponent(query);
+      if (target === '_self') {
+        window.location.assign(url);
+      } else {
+        window.open(url, target);
+      }
     }
     input.value = '';
     closeSearchResults();

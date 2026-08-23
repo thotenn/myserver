@@ -1,0 +1,5 @@
+# Small links above the cards. Delete the file if you do not want the section.
+# Shape: group name -> one entry per bookmark, `Name: { abbr, href, icon }`.
+- Shortcuts:
+    - Support: { abbr: SP, href: https://tickets.example.com/acme/new, icon: mdi:lifebuoy }
+    - Status page: { abbr: ST, href: https://status.example.com }

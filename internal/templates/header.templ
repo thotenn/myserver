@@ -46,7 +46,7 @@ templ Header(data PageData) {
 				}
 			</div>
 			if showSearchBar(data) {
-				@SearchWidget(data.Language)
+				@SearchWidget(data.Language, searchTarget(data.Widgets))
 			}
 		</div>
 	</header>

@@ -60,6 +60,15 @@ func initConfig(logger *zap.Logger) {
 	if err := config.EnsureConfigDir(); err != nil {
 		logger.Fatal("failed to ensure config dir", zap.Error(err))
 	}
+	// A malformed prefix would silently serve the dashboard from the root and
+	// emit URLs that do not resolve, so it is fatal at startup — the same
+	// rule initAuth follows for a broken policy.
+	if _, err := config.ParseBasePath(os.Getenv("HOMEPAGE_BASE_PATH")); err != nil {
+		logger.Fatal("invalid HOMEPAGE_BASE_PATH; refusing to start", zap.Error(err))
+	}
+	if prefix := config.BasePath(); prefix != "" {
+		logger.Info("serving under a base path", zap.String("basePath", prefix))
+	}
 	config.ReloadCache()
 	logger.Info("config cache initialised")
 }

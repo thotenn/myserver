@@ -1,17 +1,22 @@
 package templates
 
 // SearchWidget — unified search box. Acts as both a web-search bar (Enter
-// submits to the configured engine — Google by default) and a live
-// QuickLaunch: typing filters services and bookmarks and shows them in a
-// dropdown right under the input. The drop-down behaviour is wired up by
-// `web/static/js/app.js` (`#search-input` + `#search-results`).
-templ SearchWidget(lang string) {
+// submits to the configured engine) and a live QuickLaunch: typing filters
+// services and bookmarks and shows them in a dropdown right under the input.
+// The drop-down behaviour is wired up by `web/static/js/app.js`
+// (`#search-input` + `#search-results`).
+//
+// The form is a real, working GET to the configured engine, so it does the
+// right thing with JavaScript off and before app.js has run. app.js reads the
+// same action back instead of hardcoding an engine — see searchTarget in
+// search.go.
+templ SearchWidget(lang string, search SearchTarget) {
 	<div class="flex-1 max-w-md">
-		<form id="search-form" class="relative" action="/search" method="GET" autocomplete="off">
+		<form id="search-form" class="relative" action={ search.Action } method="GET" target={ search.Target } autocomplete="off">
 			<input
 				id="search-input"
 				type="text"
-				name="q"
+				name={ search.Param }
 				placeholder={ T(lang, "search.placeholder") }
 				role="combobox"
 				aria-autocomplete="list"
@@ -58,8 +63,8 @@ templ GreetingWidget(lang string) {
 // returns HTML (content-negotiated).
 templ ResourcesWidget(opts map[string]interface{}) {
 	<div class="flex items-center gap-3 px-3 py-2 bg-theme-100/50 dark:bg-theme-800/50 rounded-lg"
-		hx-get={ resourcesURL(opts) }
-		hx-trigger="load, every 5s [document.visibilityState === 'visible']"
+		hx-get={ resourcesURL(ctx, opts) }
+		hx-trigger="load, every 5s"
 		hx-swap="innerHTML"
 		hx-target="this">
 		<span class="text-[10px] text-theme-400">…</span>
@@ -93,8 +98,8 @@ templ ResourcesHTML(bars []ResourceBarData) {
 // /api/widgets/openmeteo.
 templ WeatherWidget(opts map[string]interface{}) {
 	<div class="flex items-center gap-2 text-theme-700 dark:text-theme-200 text-xs"
-		hx-get={ weatherURL(opts) }
-		hx-trigger="load, every 300s [document.visibilityState === 'visible']"
+		hx-get={ weatherURL(ctx, opts) }
+		hx-trigger="load, every 300s"
 		hx-swap="innerHTML"
 		hx-target="this">
 		<svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">

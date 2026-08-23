@@ -111,7 +111,7 @@ func Header(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if showSearchBar(data) {
-			templ_7745c5c3_Err = SearchWidget(data.Language).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = SearchWidget(data.Language, searchTarget(data.Widgets)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

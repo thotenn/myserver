@@ -1,4 +1,4 @@
-.PHONY: build test test-race test-cover lint clean templ tailwind docker-build docker-run run dev generate tidy up down logs
+.PHONY: build test test-race test-cover lint clean templ tailwind docker-build docker-run run dev generate tidy up down logs dashboard
 
 BINARY=myserver
 DOCKER_IMAGE=myserver
@@ -41,6 +41,10 @@ tailwind:
 # Local development. The binary defaults to the container path /app/config,
 # which is not writable outside Docker, so point it at the repo's config/.
 HOMEPAGE_CONFIG_DIR ?= ./config
+
+dashboard: ## Scaffold a client dashboard config: SLUG=acme (see .agents/skills/sk-clients/)
+	@test -n "$(SLUG)" || { echo "dashboard: pass SLUG=<slug>, e.g. make dashboard SLUG=acme" >&2; exit 1; }
+	@bash .agents/skills/sk-clients/scripts/new-dashboard.sh $(SLUG)
 
 dev: ## Hot reload with air
 	HOMEPAGE_CONFIG_DIR=$(HOMEPAGE_CONFIG_DIR) air

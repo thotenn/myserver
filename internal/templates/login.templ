@@ -34,8 +34,8 @@ templ authShell(data AuthPageData) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<meta name="robots" content="noindex, nofollow"/>
 			<title>{ data.Title }</title>
-			<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.AssetVersion }/>
-			<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.AssetVersion }/>
+			<link rel="stylesheet" href={ staticURL(ctx, "/static/css/main.css", data.AssetVersion) }/>
+			<link rel="stylesheet" href={ staticURL(ctx, "/static/css/themes.css", data.AssetVersion) }/>
 		</head>
 		<body class="min-h-screen bg-theme-50 dark:bg-theme-900 text-theme-900 dark:text-theme-100">
 			<main class="min-h-screen flex items-center justify-center px-4">
@@ -89,7 +89,7 @@ templ DeniedPage(data AuthPageData) {
 				</p>
 			}
 			<a
-				href="/auth/login"
+				href={ authURL(ctx, "/auth/login") }
 				class="mt-6 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400"
 			>
 				{ T(data.Language, "auth.tryAnotherAccount") }
@@ -115,7 +115,7 @@ templ googleMark() {
 // triggered by any image tag on any page. The CSP forbids inline handlers, so
 // there is no onclick here either.
 templ SignOutButton(data PageData) {
-	<form method="post" action="/auth/logout" class="flex-shrink-0">
+	<form method="post" action={ authURL(ctx, "/auth/logout") } class="flex-shrink-0">
 		<button
 			type="submit"
 			title={ data.AuthEmail }

@@ -19,35 +19,24 @@ templ Head(data PageData) {
 		     not of the config: config.CurrentHash() does not change when a
 		     deploy ships a new stylesheet, and browsers then keep the cached
 		     one for a day against the new markup. -->
-		<link rel="preload" as="style" href={ "/static/css/main.css?v=" + data.AssetVersion }/>
-		<link rel="preload" as="script" href={ "/static/js/app.js?v=" + data.AssetVersion }/>
-		<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.AssetVersion }/>
-		<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.AssetVersion }/>
-		<link rel="stylesheet" href="/api/config/custom.css"/>
-		<!-- Early theme init to avoid FOUC -->
-		@themeInit()
+		<link rel="preload" as="style" href={ staticURL(ctx, "/static/css/main.css", data.AssetVersion) }/>
+		<link rel="preload" as="script" href={ staticURL(ctx, "/static/js/app.js", data.AssetVersion) }/>
+		<link rel="stylesheet" href={ staticURL(ctx, "/static/css/main.css", data.AssetVersion) }/>
+		<link rel="stylesheet" href={ staticURL(ctx, "/static/css/themes.css", data.AssetVersion) }/>
+		<link rel="stylesheet" href={ configFileURL(ctx, "custom.css") }/>
+		<!-- Early theme init to avoid FOUC. A file, not an inline script: the
+		     CSP is `script-src 'self'`, which blocks inline scripts, so the
+		     inline version never ran. Blocking (no defer/async) on purpose —
+		     it has to apply the class before the first paint. -->
+		<script src={ staticURL(ctx, "/static/js/theme-init.js", data.AssetVersion) }></script>
 		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 		<script src="https://unpkg.com/htmx.org@2.0.4/dist/ext/json-enc.js"></script>
 		<!-- Background image (if any) is applied via a dynamic `style=""`
 		     attribute on <body> in layout.templ. We cannot interpolate { ... }
 		     inside <style> blocks because Templ emits them literally. -->
 		<meta name="config-hash" content={ data.Hash }/>
+		if basePathOf(ctx) != "" {
+			<meta name="base-path" content={ basePathOf(ctx) }/>
+		}
 	</head>
-}
-
-// themeInit is a small inline script placed at the top of <head> to apply
-// the persisted theme/color from localStorage before any CSS is parsed,
-// avoiding the flash-of-unstyled-content when JS runs late.
-templ themeInit() {
-	<script>
-		(function() {
-			try {
-var t = localStorage.getItem('myserver-theme');
-			if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-			document.documentElement.classList.add(t);
-			var c = localStorage.getItem('myserver-color') || 'slate';
-				document.documentElement.classList.add('theme-' + c);
-			} catch (e) {}
-		})();
-	</script>
 }

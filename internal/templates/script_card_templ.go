@@ -181,9 +181,9 @@ func ScriptCardBody(svc config.Service, lang string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs("/api/scripts/" + svc.Script)
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(scriptRunURL(ctx, svc.Script))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/script_card.templ`, Line: 33, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/script_card.templ`, Line: 33, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -251,9 +251,9 @@ func ScriptCardBody(svc config.Service, lang string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var14 string
-			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs("/api/scripts/" + svc.Script)
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(scriptRunURL(ctx, svc.Script))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/script_card.templ`, Line: 44, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/script_card.templ`, Line: 44, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -435,9 +435,9 @@ func ScriptResult(svc config.Service, status string, exitCode int, output, durat
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs("/api/scripts/" + svc.Script)
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(scriptRunURL(ctx, svc.Script))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/script_card.templ`, Line: 87, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/script_card.templ`, Line: 87, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {

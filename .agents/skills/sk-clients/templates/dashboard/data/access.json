@@ -1,0 +1,7 @@
+{
+  "access": [
+    { "app": "Orders", "where": "team vault" },
+    { "app": "Billing", "where": "team vault" },
+    { "app": "Reports", "where": "your Google account" }
+  ]
+}

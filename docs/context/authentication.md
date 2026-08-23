@@ -177,12 +177,21 @@ half-configured.
 would let a forged header point the login at another domain. Register the same
 URL in the Google console.
 
+When the dashboard is served under a base path
+([`configuration.md`](./configuration.md#serving-under-a-base-path)), the
+prefix is part of this URL — `https://dashboard.example.com/team/auth/google/callback`
+— and the same value has to be registered in the Google console.
+
 ### `session`
 
 The cookie is stateless: `email | expiry | nonce` signed with HMAC-SHA256, set
 `HttpOnly` (mandatory — `custom.js` is arbitrary operator JavaScript on the
 same page), `SameSite=Lax` and `Secure` by default. It slides forward once
 less than half its life is left.
+
+The cookie's `Path` is the dashboard's own: `/` normally, and the base path when
+one is configured, so a session issued for `/team` is not sent to anything else
+on that host.
 
 Leaving `secret` unset generates a random key per process, so sessions do not
 survive a restart or redeploy. Set it to keep people signed in across
@@ -259,6 +268,15 @@ not the profile or the picture.
 The `next` destination is only accepted when it starts with a single `/`.
 `//evil.example` and `/\evil.example` are read by browsers as off-site URLs,
 so both are rejected, and the check runs again at the moment of use.
+
+Under a base path every path in that flow carries the prefix
+(`/team/auth/login`, `/team/auth/google/callback`), while `next` stays relative
+to the dashboard and is re-rooted under the prefix when it is used — so a
+destination cannot lead out of the dashboard it was created in. The short-lived
+OAuth state cookie is named after the prefix (`__Host-myserver_oauth_team`),
+because `__Host-` requires `Path=/` and therefore cannot be scoped the way the
+session cookie is: without a distinct name, two logins in flight under
+different prefixes on one host would overwrite each other's state.
 
 ### Why there is no JWT library
 

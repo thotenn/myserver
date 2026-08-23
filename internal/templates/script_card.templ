@@ -30,7 +30,7 @@ templ ScriptCardBody(svc config.Service, lang string) {
 		if svc.RequireConfirm {
 			<button
 				class="btn-execute flex-1"
-				hx-post={ "/api/scripts/" + svc.Script }
+				hx-post={ scriptRunURL(ctx, svc.Script) }
 				hx-target={ "#script-card-" + svc.Script }
 				hx-swap="innerHTML"
 				hx-headers='{"X-Homepage-Confirm": "yes"}'
@@ -41,7 +41,7 @@ templ ScriptCardBody(svc config.Service, lang string) {
 		} else {
 			<button
 				class="btn-execute flex-1"
-				hx-post={ "/api/scripts/" + svc.Script }
+				hx-post={ scriptRunURL(ctx, svc.Script) }
 				hx-target={ "#script-card-" + svc.Script }
 				hx-swap="innerHTML"
 				hx-indicator={ "#script-spinner-" + svc.Script }>
@@ -84,7 +84,7 @@ templ ScriptResult(svc config.Service, status string, exitCode int, output, dura
 	<div class="mt-3 flex gap-2 items-center">
 		<button
 			class="btn-execute flex-1"
-			hx-post={ "/api/scripts/" + svc.Script }
+			hx-post={ scriptRunURL(ctx, svc.Script) }
 			hx-target={ "#script-card-" + svc.Script }
 			hx-swap="innerHTML"
 			if svc.RequireConfirm {

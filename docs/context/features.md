@@ -57,9 +57,12 @@ The most flexible widget. Supports:
 - Any API URL
 - Field mapping via `mappings`
 - `display: dynamic-list` mode → server-side rendered as HTML list
-- Extensible `display` modes
+- Extensible `display` modes — but see the caveat below: `dynamic-list` is the
+  only one with markup
 
-**Implementation:** Fully implemented with `GetValue` field-path traversal, `FormatValue` with number/date/bytes formats, and display-mode dispatch (`text`, `dynamic-list`, `graph`, `list`, `tile`). `GenericProxyHandler` queries the widget registry for `APITemplate()` and `Mappings()` dynamically.
+**Implementation:** `GetValue` field-path traversal, `FormatValue` with number/date/bytes formats, and display-mode dispatch (`text`, `dynamic-list`, `graph`, `list`, `tile`) in `widgets.ProcessDisplay`. `GenericProxyHandler` queries the widget registry for `APITemplate()` and `Mappings()` dynamically.
+
+⚠️ **Only `dynamic-list` reaches the card.** `handlers/proxy.go` content-negotiates HTML for that mode alone; the other four return JSON, which the `htmx:beforeSwap` guard in `app.js` refuses to swap — the card renders empty. The demo config's `Data` group shows this. Fixing it means one Templ component per mode plus the branch in the handler.
 
 **Implementation:** `internal/widgets/customapi.go`
 
@@ -293,7 +296,30 @@ session, providers), `internal/middleware/auth.go` (the gate),
 
 ---
 
-## 17. Known Issues / Real Blockers
+## 17. Base Path (opt-in)
+
+Optional. `HOMEPAGE_BASE_PATH=/team` serves the whole dashboard under a URL
+prefix instead of at the root of its host. Unset — the default — the app is the
+one it was before the option existed, byte for byte.
+
+| Aspect | Behaviour |
+|---|---|
+| **Validation** | Must start with `/`, must not end with one, segments limited to `A-Za-z0-9._~-`. An invalid value is fatal at startup, never half-applied |
+| **How it works** | One middleware strips the prefix at the edge and publishes it on the request context. Route patterns, `http.StripPrefix("/static/")` and the auth gate's public-path allowlist keep matching today's paths, so a prefixed deployment cannot drift from an unprefixed one |
+| **Emitted URLs** | Every URL the templates produce goes through a builder in `internal/templates/urls.go` that adds the prefix. The browser gets the prefix once, as `<meta name="base-path">`, which `app.js` reads for its `/api/hash` poll |
+| **Cookies** | The session cookie's `Path` becomes the prefix. The `__Host-` OAuth state cookie cannot be (that prefix requires `Path=/`), so its NAME carries the base path instead |
+| **`next` and redirects** | Inside a handler every path is relative to the dashboard; the prefix is added when a redirect is emitted. A caller-supplied `next` is therefore re-rooted under this dashboard and cannot lead out of it |
+| **Deployment** | The reverse proxy must pass the prefix through unstripped, and the healthcheck moves to `/<base>/api/healthcheck` |
+
+**Implementation:** `internal/config/basepath.go`,
+`internal/middleware/basepath.go`, `internal/templates/urls.go`,
+`internal/auth/session.go`, `web/static/js/app.js`.
+
+**Docs:** [`configuration.md#serving-under-a-base-path`](./configuration.md#serving-under-a-base-path).
+
+---
+
+## 18. Known Issues / Real Blockers
 
 1. ~~Real `customapi` widget~~ — **DONE** (v1.2.0)
 2. ~~Wire `MergeServices` + `DockerDiscoverer`~~ — **DONE** (v1.2.0)

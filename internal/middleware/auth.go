@@ -12,8 +12,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// LoginPath is where unauthenticated browsers are sent.
+// LoginPath is where unauthenticated browsers are sent. Like every path inside
+// a handler it is relative to the dashboard: the base path is added when the
+// redirect is emitted, by config.PrefixPathFrom.
 const LoginPath = "/auth/login"
+
+// DeniedPath is where an authenticated caller who is not on the allowlist goes.
+const DeniedPath = "/auth/denied"
 
 // contextKey is unexported so no other package can collide with it.
 type contextKey struct{ name string }
@@ -113,7 +118,7 @@ func authenticate(w http.ResponseWriter, r *http.Request, cfg *config.AuthConfig
 	if err != nil {
 		return "", false
 	}
-	auth.MaybeRenewSession(w, cfg, session)
+	auth.MaybeRenewSession(r.Context(), w, cfg, session)
 	return session.Email, true
 }
 
@@ -140,6 +145,9 @@ func isPublicPath(path string, cfg *config.AuthConfig) bool {
 // challenge answers an unauthenticated request in the form its caller can act
 // on.
 func challenge(w http.ResponseWriter, r *http.Request) {
+	// Emitted URLs, unlike matched ones, carry the base path of the dashboard
+	// this request is being served under.
+	loginPath := config.PrefixPathFrom(r.Context(), LoginPath)
 	// HTMX polls widgets in the background. Answering those with the login
 	// HTML would make HTMX paint the login page inside a widget card; the
 	// HX-Redirect header navigates the whole page instead.
@@ -148,12 +156,16 @@ func challenge(w http.ResponseWriter, r *http.Request) {
 	// returning the visitor to one after signing in would leave them looking
 	// at a bare widget instead of the dashboard.
 	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", LoginPath)
+		w.Header().Set("HX-Redirect", loginPath)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	target := LoginPath
+	// `next` stays dashboard-relative: r.URL has already had the prefix
+	// stripped by middleware.BasePath, and every redirect that later consumes
+	// it adds the prefix back. That is what confines a caller-supplied
+	// destination to this dashboard without a second validation rule.
+	target := loginPath
 	if next := r.URL.RequestURI(); next != "" && next != "/" {
 		target += "?next=" + url.QueryEscape(next)
 	}
@@ -166,8 +178,9 @@ func challenge(w http.ResponseWriter, r *http.Request) {
 
 // forbidden answers a caller who authenticated but is not on the allowlist.
 func forbidden(w http.ResponseWriter, r *http.Request) {
+	deniedPath := config.PrefixPathFrom(r.Context(), DeniedPath)
 	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", "/auth/denied")
+		w.Header().Set("HX-Redirect", deniedPath)
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -175,7 +188,7 @@ func forbidden(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	http.Redirect(w, r, "/auth/denied", http.StatusFound)
+	http.Redirect(w, r, deniedPath, http.StatusFound)
 }
 
 // lockdown refuses to serve anything while the auth policy is unknown.

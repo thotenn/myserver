@@ -6,6 +6,12 @@ Target: ~50–80 MiB RAM, single ~14 MB binary, ~30 MB Docker image.
 
 - **User documentation**: `README.md`
 - **Agent skill — configure a running instance, no Go**: `.agents/skills/add-widget/`
+  (the content of one dashboard: cards, widgets, bookmarks, icons)
+- **Agent skill — the dashboards themselves**: `.agents/skills/sk-clients/`.
+  How many there are, which config directory feeds each one, which URL prefix it
+  answers on, and who is allowed in. Read it before adding or changing a
+  dashboard, and before touching `HOMEPAGE_BASE_PATH` or a per-dashboard
+  `auth.yaml`.
 - **Agent skill — change the UI code itself** (Templ, Tailwind, HTMX, the
   handlers that render HTML): `.agents/skills/sk-ui/`. Read it before touching
   anything under `internal/templates/` or `web/`.
@@ -34,6 +40,7 @@ make dev         # hot reload with air
 make templ       # regenerate *_templ.go
 make tailwind    # compile web/static/css/main.css
 make up | down | logs   # docker compose wrappers
+make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 ```
 
 ---
@@ -102,8 +109,17 @@ make up | down | logs   # docker compose wrappers
   `container-type: inline-size` and `.service-stats` queries it. Container
   queries resolve against the **content box**, so the threshold excludes the
   card padding.
-- **CSP is `script-src 'self' …`**: no inline `onclick`/`onsubmit`/`onerror`.
-  Attach listeners in `app.js` via `addEventListener`.
+- **CSP is `script-src 'self' …`**: no inline `onclick`/`onsubmit`/`onerror`,
+  **and no inline `<script>` body either**. Two cases were shipping blocked:
+  the early theme script lived inline in `head.templ`, so the FOUC it prevents
+  came back and every page logged a violation — it is now
+  `web/static/js/theme-init.js`, a blocking `<script src>`. And an
+  `hx-trigger` **filter** (`every 30s [document.visibilityState === 'visible']`)
+  is compiled by htmx with `new Function(...)`, which the same CSP blocks with
+  no `'unsafe-eval'`: every polled element logged an `EvalError` and lost its
+  filter, so hidden tabs kept polling — the opposite of the intent. The pause
+  now lives in `app.js` (`htmx:beforeRequest` + `document.hidden`), and
+  `hx-trigger` stays free of `[...]` expressions.
 
 ### Tailwind CSS
 
@@ -131,6 +147,48 @@ make up | down | logs   # docker compose wrappers
 - Consequence for any markup change: a new custom class in `input.css` only
   works if the CSS is recompiled AND the browser refetches it. Both are now
   automatic; a stale view in dev is a hard reload away.
+
+### Base path (`HOMEPAGE_BASE_PATH`)
+
+- **Inside a handler, a path is always relative to the dashboard. The prefix is
+  added only when a URL is EMITTED.** `middleware.BasePath` strips it at the
+  edge and puts it on the request context, so chi's patterns,
+  `http.StripPrefix("/static/")` and the auth gate's public-path allowlist keep
+  matching the same paths they matched before the option existed. Never "fix" a
+  path comparison by prepending the prefix to it — that reintroduces the bug
+  this design avoids (`/team/static/…` not matching `/static/`, which puts the
+  login page's CSS behind the login gate).
+- **Every emitted URL goes through a builder in `internal/templates/urls.go`**,
+  and every redirect through `handlers.redirect` / `config.PrefixPathFrom`. A
+  literal `"/api/…"` or `http.Redirect(w, r, "/auth/login", …)` is a bug that
+  only shows up in a prefixed deployment.
+- **Two accessors, and they are not interchangeable.** `config.BasePath()` reads
+  the env var and is memoised; only `handlers.API` and `cmd/myserver` may call
+  it. Everything else reads `config.BasePathFrom(ctx)` — the prefix of *this*
+  request. Inside a `templ` component `ctx` is in scope, which is why the URL
+  builders take it instead of the components growing a parameter.
+- **`next` stays dashboard-relative** and is re-rooted under the prefix when
+  used, which is what confines a caller-supplied destination to this dashboard.
+  `safeNext` keeps doing only what it did: reject off-site and
+  protocol-relative values.
+- **Cookies:** the session cookie's `Path` is the prefix. The OAuth state cookie
+  cannot be scoped that way — `__Host-` requires `Path=/` — so its NAME carries
+  the base path instead.
+- **The prefix must not be interpolated into a `<script>`** (see §Templ). It
+  reaches the browser as `<meta name="base-path">`, emitted only when non-empty
+  so the unprefixed HTML stays byte-identical, and `app.js` reads it.
+- Unset means the pre-feature code path, verified byte-for-byte against the
+  previous binary (HTML, `/api/services`, headers, cookies, redirect targets).
+  Keep `TestBasePath_AbsentLeavesTheHTMLUntouched` passing.
+
+### customapi display modes
+
+- **Only `display: dynamic-list` is content-negotiated to HTML.** `text`,
+  `list`, `tile` and `graph` run through `widgets.ProcessDisplay` and are
+  returned as JSON (`handlers/proxy.go`), and the `htmx:beforeSwap` guard in
+  `app.js` refuses to swap non-HTML — so those cards render EMPTY, including
+  the ones in the demo config's `Data` group. Either add the HTML branch and a
+  Templ component per mode, or stop documenting them as working.
 
 ### Config & hot-reload
 
@@ -244,6 +302,10 @@ make up | down | logs   # docker compose wrappers
   non-URL values returned byte for byte (round-tripping arbitrary text
   through `url.Parse` would rewrite escapes). The HTML dashboard renders
   from `config.LoadServices()` and is not affected by this stripping.
+- **`Service.Labels` is parsed and sanitized but never rendered.** No template
+  prints it, so it only reaches `/api/services`. Anything meant to be visible
+  on a card goes in `description` (or a `customapi` widget); do not plan a
+  feature around labels showing up without adding the markup first.
 - `handlers.Services` caches an **already sanitized** copy. Never
   post-process the cached slice in place: it is shared across requests, so
   editing it is a data race and any per-request view (e.g. filtering by the

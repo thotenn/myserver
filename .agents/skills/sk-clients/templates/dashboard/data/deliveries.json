@@ -1,0 +1,6 @@
+{
+  "deliveries": [
+    { "title": "Stock report per warehouse", "date": "2026-01-30", "url": "https://tickets.example.com/acme/141" },
+    { "title": "Bulk client import (CSV)", "date": "2026-02-06", "url": "https://tickets.example.com/acme/148" }
+  ]
+}

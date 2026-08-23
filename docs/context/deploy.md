@@ -65,6 +65,13 @@ the deployment environment.
 
 6. Point your reverse proxy / tunnel at the published port.
 
+   To serve the dashboard under a path instead of at the root of the host, set
+   `HOMEPAGE_BASE_PATH=/team` (see
+   [`configuration.md`](./configuration.md#serving-under-a-base-path)) and
+   configure the proxy to pass the prefix through **unstripped** — the instance
+   expects `/team/…` and answers `404` outside it. Remember to prefix the
+   healthcheck and the Google `redirectURL` too.
+
 7. **Decide who can see the dashboard.** It is public by default, so it needs
    one of:
 
@@ -120,6 +127,10 @@ healthcheck:
 Orchestrators use this for unhealthy-container detection and zero-downtime
 restarts. `/api/healthcheck` is the one endpoint that must stay reachable
 without auth.
+
+With `HOMEPAGE_BASE_PATH` set, the path moves with the rest of the app:
+`http://localhost:3000/team/api/healthcheck`. An unprefixed healthcheck answers
+`404` and reports the container unhealthy for the wrong reason.
 
 ---
 

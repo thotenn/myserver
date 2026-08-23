@@ -1,0 +1,64 @@
+# What the client came for: links, reminders, and read-only status.
+#
+# RULES (see ../../SKILL.md):
+#   - Reminders go in `description`. `labels:` is parsed but never rendered.
+#   - Never a real password, key or token — say WHERE the secret is kept.
+#   - `siteMonitor:` / `ping:` are safe here: they hit the service's own URL and
+#     carry no widget credential. A `widget:` with `key`/`token`/`password` does
+#     — never put one on a client dashboard.
+#   - customapi: only `display: dynamic-list` renders. The other modes return
+#     JSON and the card stays empty.
+
+- Applications:
+    - Orders panel:
+        href: https://orders.example.com
+        description: user acme.admin · password in the team vault
+        icon: mdi:cart-outline
+        siteMonitor: https://orders.example.com
+
+    - Billing:
+        href: https://billing.example.com
+        description: user acme.billing · password in the team vault
+        icon: mdi:receipt-text-outline
+        siteMonitor: https://billing.example.com
+
+- Documentation:
+    - User manual:
+        href: https://docs.example.com/acme
+        description: how to use the orders panel
+        icon: mdi:book-open-variant
+
+    - Tickets:
+        href: https://tickets.example.com/acme
+        description: ask for changes and report problems here
+        icon: mdi:ticket-confirmation-outline
+        siteMonitor: https://tickets.example.com
+
+- Status:
+    # Reads data/access.json from THIS dashboard's directory. The file is never
+    # served to the browser: /api/config/{path} only serves custom.css,
+    # custom.js and images, so it reaches the page only through `mappings`.
+    - Access:
+        description: user, and where each password is kept
+        icon: mdi:key-outline
+        widget:
+          type: customapi
+          url: file://data/access.json
+          display: dynamic-list
+          mappings:
+            items: access
+            name: app
+            label: where
+
+    - Next deliveries:
+        description: what is coming and when
+        icon: mdi:calendar-check-outline
+        widget:
+          type: customapi
+          url: file://data/deliveries.json
+          display: dynamic-list
+          mappings:
+            items: deliveries
+            name: title
+            label: date
+            target: "{url}"

@@ -108,9 +108,9 @@ func authShell(data AuthPageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 templ.SafeURL
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.AssetVersion)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(staticURL(ctx, "/static/css/main.css", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 37, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 37, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -121,9 +121,9 @@ func authShell(data AuthPageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 templ.SafeURL
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/themes.css?v=" + data.AssetVersion)
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(staticURL(ctx, "/static/css/themes.css", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 38, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 38, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -355,20 +355,33 @@ func DeniedPage(data AuthPageData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<a href=\"/auth/login\" class=\"mt-6 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var20 string
-			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.tryAnotherAccount"))
+			var templ_7745c5c3_Var20 templ.SafeURL
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(authURL(ctx, "/auth/login"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 95, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 92, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</a></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" class=\"mt-6 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var21 string
+			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.tryAnotherAccount"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 95, Col: 48}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</a></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -400,12 +413,12 @@ func googleMark() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var21 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var21 == nil {
-			templ_7745c5c3_Var21 = templ.NopComponent
+		templ_7745c5c3_Var22 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var22 == nil {
+			templ_7745c5c3_Var22 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<svg class=\"h-5 w-5 flex-shrink-0\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><path fill=\"#EA4335\" d=\"M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z\"></path> <path fill=\"#4285F4\" d=\"M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z\"></path> <path fill=\"#FBBC05\" d=\"M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z\"></path> <path fill=\"#34A853\" d=\"M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z\"></path></svg>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<svg class=\"h-5 w-5 flex-shrink-0\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><path fill=\"#EA4335\" d=\"M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z\"></path> <path fill=\"#4285F4\" d=\"M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z\"></path> <path fill=\"#FBBC05\" d=\"M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z\"></path> <path fill=\"#34A853\" d=\"M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z\"></path></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -434,38 +447,51 @@ func SignOutButton(data PageData) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var22 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var22 == nil {
-			templ_7745c5c3_Var22 = templ.NopComponent
+		templ_7745c5c3_Var23 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var23 == nil {
+			templ_7745c5c3_Var23 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<form method=\"post\" action=\"/auth/logout\" class=\"flex-shrink-0\"><button type=\"submit\" title=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<form method=\"post\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(data.AuthEmail)
+		var templ_7745c5c3_Var24 templ.SafeURL
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(authURL(ctx, "/auth/logout"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 121, Col: 25}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" aria-label=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.signOut"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 122, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 118, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" class=\"p-2 rounded-lg text-theme-600 dark:text-theme-400 hover:bg-theme-200 dark:hover:bg-theme-700 focus:outline-none focus:ring-2 focus:ring-blue-500\"><svg class=\"w-5 h-5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1\"></path></svg></button></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" class=\"flex-shrink-0\"><button type=\"submit\" title=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var25 string
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(data.AuthEmail)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 121, Col: 25}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" aria-label=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var26 string
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.signOut"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 122, Col: 48}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" class=\"p-2 rounded-lg text-theme-600 dark:text-theme-400 hover:bg-theme-200 dark:hover:bg-theme-700 focus:outline-none focus:ring-2 focus:ring-blue-500\"><svg class=\"w-5 h-5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1\"></path></svg></button></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

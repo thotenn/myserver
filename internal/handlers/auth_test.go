@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,7 +70,7 @@ func sessionCookie(t *testing.T, email string) *http.Cookie {
 	cfg := config.Auth().Config
 	require.NotNil(t, cfg, "auth must be configured")
 	rec := httptest.NewRecorder()
-	require.NoError(t, auth.IssueSession(rec, cfg, email))
+	require.NoError(t, auth.IssueSession(context.Background(), rec, cfg, email))
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
 	return cookies[0]

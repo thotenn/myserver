@@ -8,6 +8,11 @@ Handlers do **content negotiation** via the `HX-Request` header:
 - `HX-Request: true` → partial HTML (Templ, for `innerHTML` swaps).
 - otherwise → JSON (for API clients).
 
+Every path below is written from the root of the host. With
+`HOMEPAGE_BASE_PATH` set they all move under that prefix — `/team/api/services`
+— and the unprefixed form answers `404`. See
+[`configuration.md#serving-under-a-base-path`](./configuration.md#serving-under-a-base-path).
+
 ---
 
 ## Core

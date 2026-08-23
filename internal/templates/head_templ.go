@@ -70,9 +70,9 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 templ.SafeURL
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.AssetVersion)
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(staticURL(ctx, "/static/css/main.css", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 22, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 22, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -83,9 +83,9 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 templ.SafeURL
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs("/static/js/app.js?v=" + data.AssetVersion)
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(staticURL(ctx, "/static/js/app.js", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 23, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 23, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -96,9 +96,9 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 templ.SafeURL
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.AssetVersion)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(staticURL(ctx, "/static/css/main.css", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 24, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 24, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -109,68 +109,77 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 templ.SafeURL
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/themes.css?v=" + data.AssetVersion)
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(staticURL(ctx, "/static/css/themes.css", data.AssetVersion))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 25, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 25, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><link rel=\"stylesheet\" href=\"/api/config/custom.css\"><!-- Early theme init to avoid FOUC -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><link rel=\"stylesheet\" href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = themeInit().Render(ctx, templ_7745c5c3_Buffer)
+		var templ_7745c5c3_Var8 templ.SafeURL
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(configFileURL(ctx, "custom.css"))
 		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/htmx.org@2.0.4/dist/ext/json-enc.js\"></script><!-- Background image (if any) is applied via a dynamic `style=\"\"`\n\t\t     attribute on <body> in layout.templ. We cannot interpolate { ... }\n\t\t     inside <style> blocks because Templ emits them literally. --><meta name=\"config-hash\" content=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(data.Hash)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 34, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 26, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"></head>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"><!-- Early theme init to avoid FOUC. A file, not an inline script: the\n\t\t     CSP is `script-src 'self'`, which blocks inline scripts, so the\n\t\t     inline version never ran. Blocking (no defer/async) on purpose —\n\t\t     it has to apply the class before the first paint. --><script src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		return nil
-	})
-}
-
-// themeInit is a small inline script placed at the top of <head> to apply
-// the persisted theme/color from localStorage before any CSS is parsed,
-// avoiding the flash-of-unstyled-content when JS runs late.
-func themeInit() templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(staticURL(ctx, "/static/js/theme-init.js", data.AssetVersion))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 31, Col: 77}
 		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
 		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var9 == nil {
-			templ_7745c5c3_Var9 = templ.NopComponent
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"></script><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/htmx.org@2.0.4/dist/ext/json-enc.js\"></script><!-- Background image (if any) is applied via a dynamic `style=\"\"`\n\t\t     attribute on <body> in layout.templ. We cannot interpolate { ... }\n\t\t     inside <style> blocks because Templ emits them literally. --><meta name=\"config-hash\" content=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
 		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<script>\n\t\t(function() {\n\t\t\ttry {\nvar t = localStorage.getItem('myserver-theme');\n\t\t\tif (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';\n\t\t\tdocument.documentElement.classList.add(t);\n\t\t\tvar c = localStorage.getItem('myserver-color') || 'slate';\n\t\t\t\tdocument.documentElement.classList.add('theme-' + c);\n\t\t\t} catch (e) {}\n\t\t})();\n\t</script>")
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(data.Hash)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 37, Col: 46}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if basePathOf(ctx) != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<meta name=\"base-path\" content=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(basePathOf(ctx))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 39, Col: 51}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</head>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

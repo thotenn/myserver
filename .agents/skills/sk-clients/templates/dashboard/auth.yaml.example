@@ -1,0 +1,37 @@
+# RENAME THIS FILE to `auth.yaml` to turn login on. While it is named
+# `.example` the loader ignores it and the dashboard is public.
+#
+# It ships renamed on purpose: the allowlist IS the switch (no `enabled` flag),
+# and an `auth.yaml` whose {{HOMEPAGE_VAR_*}} placeholders are unresolved makes
+# the instance refuse to START — the correct fail-visible behaviour, and a
+# confusing first run. Fill the values, export the variables, then rename.
+#
+# See ../../guides/auth.md — two things only bite when several dashboards share
+# a hostname, and both are here:
+#   - `session.cookieName` must differ per dashboard (otherwise: login loop).
+#   - `google.redirectURL` carries the prefix AND must be registered as an
+#     authorised redirect URI in the Google console.
+
+allowlist:
+  emails:
+    - you@example.com          # you, so you see what the client sees
+    - contact@acme.example     # the client
+  # domains:
+  #   - acme.example           # everyone at the client's domain
+
+google:
+  clientId: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
+  clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
+  redirectURL: "https://example.com/acme/auth/google/callback"
+
+session:
+  cookieName: myserver_acme
+  # Unset ⇒ a random key per process, so every restart signs everyone out.
+  secret: "{{HOMEPAGE_VAR_SESSION_SECRET_ACME}}"
+  maxAge: 168h
+  secure: true
+
+# Extra paths served without a session. The login page carries no operator CSS
+# by default; uncomment to style it.
+# publicPaths:
+#   - /api/config/custom.css

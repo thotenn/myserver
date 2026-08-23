@@ -1,0 +1,19 @@
+# A client dashboard: read-only, written by the operator, served under its own
+# URL prefix (HOMEPAGE_BASE_PATH=/acme).
+title: Acme
+language: en                 # en | es
+theme: dark                  # first render only — the visitor's stored choice
+color: emerald               # wins after that, and localStorage belongs to the
+                             # HOSTNAME, so it is shared with every dashboard
+                             # on this host. Use `color` to tell them apart.
+headerStyle: clean
+target: _blank
+hideVersion: true
+cardBlur: true
+
+# Columns per group. The stylesheet caps the count below the `lg` breakpoint,
+# so a phone never gets the desktop layout.
+layout:
+  Applications: { columns: 3 }
+  Documentation: { columns: 3 }
+  Status: { columns: 2 }

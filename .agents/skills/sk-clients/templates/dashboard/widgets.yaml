@@ -1,0 +1,27 @@
+# Top bar. Everything here is optional.
+- search:
+    provider: duckduckgo       # google | duckduckgo | bing | brave | startpage
+    target: _blank             # ecosia | baidu | qwant, or `url:` for your own
+                               # engine ("https://searx.example.com/search?q=")
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: long
+      timeStyle: short
+      hour12: false
+
+- greeting:
+    text_size: lg
+
+# Open-Meteo needs no API key. Coordinates of the client's city.
+- openmeteo:
+    label: Acme HQ
+    latitude: 0.0
+    longitude: 0.0
+    timezone: Etc/UTC
+    units: metric
+    cache: 5
+
+# NOT here: `resources` reads /proc of the HOST the dashboard runs on. That is
+# your machine, not the client's — leave it to the root dashboard.

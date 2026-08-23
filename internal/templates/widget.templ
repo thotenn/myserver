@@ -6,8 +6,8 @@ templ WidgetContainer(svc config.Service, groupName string, lang string) {
 	<div class="mt-3 pt-2 border-t border-theme-100 dark:border-theme-700"
 		data-widget-type={ svc.Widget.Type }>
 		<!-- Widget data fetched via HTMX proxy -->
-		<div hx-get={ proxyURL(groupName, svc.Name, "default") }
-			hx-trigger="load, every 30s [document.visibilityState === 'visible']"
+		<div hx-get={ proxyURL(ctx, groupName, svc.Name, "default") }
+			hx-trigger="load, every 30s"
 			hx-swap="innerHTML"
 			hx-target="this">
 			<span class="htmx-indicator text-xs text-theme-400">{ T(lang, "widgets.loading") }</span>

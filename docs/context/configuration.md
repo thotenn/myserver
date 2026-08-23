@@ -185,8 +185,8 @@ and auto-assigned a Simple-Icons icon.
 
 ```yaml
 - search:                              # unified web-search + QuickLaunch
-    provider: google                   # google | duckduckgo | bing
-    target: _blank
+    provider: duckduckgo               # see the provider list below
+    target: _blank                     # _blank (default) | _self
 
 - datetime:
     text_size: xl
@@ -272,6 +272,7 @@ scripts:
 | Variable | Default | Description |
 |---|---|---|
 | `HOMEPAGE_CONFIG_DIR` | `/app/config` | YAML directory. |
+| `HOMEPAGE_BASE_PATH` | — | Serve the dashboard under a URL prefix (`/team`) instead of at the host root. See [Serving under a base path](#serving-under-a-base-path). |
 | `HOMEPAGE_ALLOWED_HOSTS` | localhost defaults | Allowed hosts (comma-separated). `*` = explicit wildcard. Unset = localhost only. |
 | `HOMEPAGE_SCRIPTS_ENABLED` | `false` | Enable the scripts feature. |
 | `HOMEPAGE_ALLOW_PRIVATE_HOSTS` | `true` | Allow proxy to reach RFC1918 IPs and loopback. |
@@ -284,6 +285,46 @@ scripts:
 | `TZ` | — | Timezone (used by `datetime` and scripts). |
 | `DEBUG` | `false` | `zap` development mode. |
 | `PUID` / `PGID` | `1000` | Container user/group (entrypoint). |
+
+---
+
+## Serving under a base path
+
+By default the dashboard owns the root of its host. `HOMEPAGE_BASE_PATH` moves
+it under a prefix instead, so one host can carry it alongside other things:
+
+```yaml
+environment:
+  HOMEPAGE_BASE_PATH: /team
+```
+
+The value must start with `/`, must not end with one, and each segment is
+limited to `A-Z a-z 0-9 . _ ~ -`. Anything else — a missing leading slash, an
+empty or relative segment, a space, a percent-escape — is refused at startup
+rather than half-applied.
+
+What changes:
+
+| | Without a base path | With `HOMEPAGE_BASE_PATH=/team` |
+|---|---|---|
+| Dashboard | `https://dashboard.example.com/` | `https://dashboard.example.com/team` |
+| API | `/api/services` | `/team/api/services` |
+| Healthcheck | `/api/healthcheck` | `/team/api/healthcheck` |
+| Session cookie `Path` | `/` | `/team` |
+| Google `redirectURL` | `…/auth/google/callback` | `…/team/auth/google/callback` |
+
+Two consequences worth planning for:
+
+- **The reverse proxy must NOT strip the prefix.** The instance expects to
+  receive `/team/…` and answers `404` for anything outside it. Point the proxy
+  at the container with the path intact (no `strip_prefix`, no
+  `rewrite ^/team(.*) $1`).
+- **Update the container healthcheck** to the prefixed path; the unprefixed one
+  now 404s.
+
+Leaving the variable unset is not a special case that is merely supported — it
+is the same code path the dashboard had before the option existed, byte for
+byte, down to cookie names and redirect targets.
 
 ---
 
@@ -324,8 +365,19 @@ filters services and bookmarks as the user types (`↑`/`↓` to navigate,
 `Esc` to close).
 
 ```yaml
-- search: { provider: google, target: _blank }     # google | duckduckgo | bing
+- search: { provider: google, target: _blank }
+- search: { url: "https://searx.example.com/search?q=" }   # self-hosted engine
 ```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `provider` | `google` | `google`, `duckduckgo`, `bing`, `brave`, `startpage`, `ecosia`, `baidu`, `qwant`. An unknown value falls back to the default. |
+| `url` | — | A custom engine, query parameter included and left empty (`…/search?q=`). Takes precedence over `provider`. Must be an absolute `http(s)` URL. |
+| `target` | `_blank` | Where results open. `_self` navigates in place. |
+
+The bar is a real form: it submits to the engine on its own, so it works with
+JavaScript disabled and before `app.js` has run. The dropdown of matching
+services and bookmarks is the enhancement on top.
 
 ### `datetime`
 
@@ -418,11 +470,18 @@ widget:
 
 Display modes:
 
+- `dynamic-list` — scrollable list with badges and links. **The only one that
+  renders on the dashboard today.**
 - `text` — a single formatted value.
 - `list` — flat key-value list.
-- `dynamic-list` — scrollable list with badges and links.
 - `graph` — sparkline (numeric data).
 - `tile` — grid of metric tiles.
+
+> ⚠️ Only `dynamic-list` is rendered as HTML for the card. The other four are
+> processed and returned as JSON, and the frontend refuses to swap a non-HTML
+> response into a card — so the card stays empty. Use `dynamic-list` (a
+> two-column list covers most of what `list` and `tile` were for) until the
+> remaining modes get their markup.
 
 **`file://` scheme**: `url: file://data/x.json` resolves to
 `$HOMEPAGE_CONFIG_DIR/data/x.json`. Absolute paths

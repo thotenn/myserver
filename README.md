@@ -137,6 +137,11 @@ Save → `fsnotify` picks up the change → browser reloads within ~10 s.
 Full schema, every widget type, env vars, and the icon resolver →
 [`docs/context/configuration.md`](docs/context/configuration.md).
 
+Need it under a path instead of at the root of the host? Set
+`HOMEPAGE_BASE_PATH=/team` and pass the prefix through your reverse proxy
+unstripped →
+[`configuration.md#serving-under-a-base-path`](docs/context/configuration.md#serving-under-a-base-path).
+
 ---
 
 ## Optional: email allowlist with Google sign-in

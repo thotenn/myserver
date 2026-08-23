@@ -27,9 +27,14 @@
 
 # 3. The file must contain valid JSON.
 
-# 4. The file is read on every proxy request (no caching yet for file://).
+# 4. The file is read on every proxy request, but the PROXY caches the response
+#    for 60s, so an edit shows up within about a minute.
 
-# 5. Changes to the JSON file trigger hot-reload via fsnotify.
+# 5. The config watcher does NOT watch it. fsnotify is attached to the top of
+#    the config directory only, and only for .yaml/.yml/.css/.js — so a JSON
+#    file, and anything inside data/, produces no reload event at all. The
+#    dashboard picks the new values up on its next poll (see 4), without the
+#    page reloading itself.
 
 ---
 # ═══════════════════════════════════════════════════════════════════════════════

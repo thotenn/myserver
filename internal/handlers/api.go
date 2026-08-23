@@ -17,6 +17,17 @@ func API(logger *zap.Logger, port int) http.Handler {
 	r := chi.NewRouter()
 	setupMiddleware(r, logger)
 	setupRoutes(r, logger, port)
+
+	// A base path is served by stripping the prefix in front of everything
+	// else, so the router below matches the same patterns either way. With no
+	// prefix configured the handler is returned untouched: a deployment that
+	// does not use the feature runs exactly the code it ran before it existed.
+	//
+	// This and cmd/myserver are the only callers of config.BasePath(); every
+	// other place reads the prefix from the request context.
+	if prefix := config.BasePath(); prefix != "" {
+		return mw.BasePath(prefix)(r)
+	}
 	return r
 }
 

@@ -6,7 +6,7 @@ templ Layout(data PageData) {
 		@Head(data)
 		<body
 			class="min-h-screen bg-theme-50 dark:bg-theme-900 text-theme-900 dark:text-theme-100 transition-colors duration-200"
-			style={ backgroundStyle(data.Settings, data.Hash) }
+			style={ backgroundStyle(ctx, data.Settings, data.Hash) }
 		>
 			<div class="container mx-auto px-4 max-w-screen-2xl">
 				@Header(data)

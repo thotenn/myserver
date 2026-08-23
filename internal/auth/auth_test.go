@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -63,7 +64,7 @@ func TestIsAllowed(t *testing.T) {
 func TestSession_RoundTrip(t *testing.T) {
 	cfg := testConfig()
 	w := httptest.NewRecorder()
-	if err := IssueSession(w, cfg, "Person@Example.com"); err != nil {
+	if err := IssueSession(context.Background(), w, cfg, "Person@Example.com"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -92,7 +93,7 @@ func TestSession_RoundTrip(t *testing.T) {
 func TestSession_RejectsTamperedCookie(t *testing.T) {
 	cfg := testConfig()
 	w := httptest.NewRecorder()
-	if err := IssueSession(w, cfg, "person@example.com"); err != nil {
+	if err := IssueSession(context.Background(), w, cfg, "person@example.com"); err != nil {
 		t.Fatal(err)
 	}
 	original := w.Result().Cookies()[0].Value
@@ -157,7 +158,7 @@ func TestSession_SlidingRenewal(t *testing.T) {
 	// Fresh cookie: more than half its life left, so nothing is re-issued.
 	fresh := &Session{Email: "person@example.com", ExpiresAt: time.Now().Add(50 * time.Minute)}
 	w := httptest.NewRecorder()
-	MaybeRenewSession(w, cfg, fresh)
+	MaybeRenewSession(context.Background(), w, cfg, fresh)
 	if len(w.Result().Cookies()) != 0 {
 		t.Error("a fresh session should not be re-issued on every request")
 	}
@@ -165,7 +166,7 @@ func TestSession_SlidingRenewal(t *testing.T) {
 	// Past its half-life: renewed so an active user is not logged out.
 	old := &Session{Email: "person@example.com", ExpiresAt: time.Now().Add(10 * time.Minute)}
 	w = httptest.NewRecorder()
-	MaybeRenewSession(w, cfg, old)
+	MaybeRenewSession(context.Background(), w, cfg, old)
 	cookies := w.Result().Cookies()
 	if len(cookies) != 1 {
 		t.Fatalf("expected the session to slide forward, got %d cookies", len(cookies))
@@ -175,7 +176,7 @@ func TestSession_SlidingRenewal(t *testing.T) {
 func TestClearSession(t *testing.T) {
 	cfg := testConfig()
 	w := httptest.NewRecorder()
-	ClearSession(w, cfg)
+	ClearSession(context.Background(), w, cfg)
 
 	c := w.Result().Cookies()[0]
 	if c.MaxAge >= 0 || c.Value != "" {

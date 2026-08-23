@@ -4,6 +4,11 @@ Expert assistant for adding service cards, bookmarks, scripts, info widgets,
 data sources, themes, or any dashboard feature to a deployed **MyServer**
 instance — without writing Go code.
 
+> **Companion skill.** `sk-clients/` owns the dashboards themselves: several of
+> them on one hostname, URL prefixes (`HOMEPAGE_BASE_PATH`), per-dashboard
+> `auth.yaml`, and what a *client* dashboard may and may not contain. If the
+> request is "add a dashboard for X" rather than "add a card", go there.
+>
 > **Companion files**
 > - `COOKBOOK.md` — complete examples, troubleshooting, advanced recipes.
 > - `templates/` — copy-paste YAML templates (one file per `config/` YAML).

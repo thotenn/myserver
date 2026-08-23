@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -100,8 +101,19 @@ func sign(secret, payload string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// SessionCookiePath scopes the session cookie to the dashboard the request is
+// being served under. At the root that is "/", exactly as before this existed;
+// under a base path it is the prefix, so a cookie minted for
+// `dashboard.example.com/team` is not sent to a sibling prefix on the same host.
+func SessionCookiePath(ctx context.Context) string {
+	if p := config.BasePathFrom(ctx); p != "" {
+		return p
+	}
+	return "/"
+}
+
 // IssueSession writes a fresh session cookie for the given email.
-func IssueSession(w http.ResponseWriter, cfg *config.AuthConfig, email string) error {
+func IssueSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig, email string) error {
 	maxAge := cfg.SessionMaxAge()
 	expiresAt := time.Now().Add(maxAge)
 	value, err := encodeSession(cfg.SessionSecret(), NormalizeEmail(email), expiresAt)
@@ -111,7 +123,7 @@ func IssueSession(w http.ResponseWriter, cfg *config.AuthConfig, email string) e
 	http.SetCookie(w, &http.Cookie{
 		Name:  cfg.CookieName(),
 		Value: value,
-		Path:  "/",
+		Path:  SessionCookiePath(ctx),
 		// HttpOnly is not optional here: config/custom.js is arbitrary
 		// operator JavaScript injected into the dashboard, so a readable
 		// session cookie would be exposed by design.
@@ -124,11 +136,11 @@ func IssueSession(w http.ResponseWriter, cfg *config.AuthConfig, email string) e
 }
 
 // ClearSession expires the session cookie.
-func ClearSession(w http.ResponseWriter, cfg *config.AuthConfig) {
+func ClearSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     cfg.CookieName(),
 		Value:    "",
-		Path:     "/",
+		Path:     SessionCookiePath(ctx),
 		HttpOnly: true,
 		Secure:   cfg.CookieSecure(),
 		SameSite: http.SameSiteLaxMode,
@@ -150,7 +162,7 @@ func ReadSession(r *http.Request, cfg *config.AuthConfig) (*Session, error) {
 
 // MaybeRenewSession re-issues the cookie when it is past its half-life, so an
 // active session slides forward instead of expiring under the user.
-func MaybeRenewSession(w http.ResponseWriter, cfg *config.AuthConfig, s *Session) {
+func MaybeRenewSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig, s *Session) {
 	if s == nil {
 		return
 	}
@@ -158,5 +170,5 @@ func MaybeRenewSession(w http.ResponseWriter, cfg *config.AuthConfig, s *Session
 		return
 	}
 	// A failure here only costs the renewal; the current cookie stays valid.
-	_ = IssueSession(w, cfg, s.Email)
+	_ = IssueSession(ctx, w, cfg, s.Email)
 }

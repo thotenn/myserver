@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -34,11 +35,25 @@ import (
 // cookie unless it is Secure, Path=/ and free of a Domain attribute, so a
 // sibling subdomain cannot plant one. It requires HTTPS, so plain-http local
 // development falls back to the unprefixed name.
+//
+// __Host- also REQUIRES Path=/, so this cookie cannot be scoped to a base
+// path the way the session cookie is. Two dashboards on the same host are
+// therefore separated by the cookie NAME instead: the base path is appended,
+// so a login in progress under one prefix cannot overwrite the state of a
+// login under another. With no base path the name is unchanged.
 const (
 	oauthStateCookieSecure = "__Host-myserver_oauth"
 	oauthStateCookiePlain  = "myserver_oauth"
 	oauthStateMaxAge       = 600 // 10 minutes
 )
+
+// redirect sends the browser to a dashboard-relative path, prefixed with the
+// base path this request is served under. Every redirect in this file goes
+// through it: a bare http.Redirect to "/auth/login" would leave a prefixed
+// deployment bouncing to the host root.
+func redirect(w http.ResponseWriter, r *http.Request, path string) {
+	http.Redirect(w, r, config.PrefixPathFrom(r.Context(), path), http.StatusFound)
+}
 
 // AuthLogin renders the login page.
 func AuthLogin(logger *zap.Logger) http.HandlerFunc {
@@ -51,12 +66,13 @@ func AuthLogin(logger *zap.Logger) http.HandlerFunc {
 		// Already signed in and still allowed? Nothing to do here.
 		if session, err := auth.ReadSession(r, state.Config); err == nil &&
 			auth.IsAllowed(state.Config, session.Email) {
-			http.Redirect(w, r, "/", http.StatusFound)
+			redirect(w, r, "/")
 			return
 		}
 
 		data := authPageData(state.Config)
-		data.StartURL = "/auth/google/start" + nextQuery(safeNext(r.URL.Query().Get("next")))
+		data.StartURL = config.PrefixPathFrom(r.Context(), "/auth/google/start") +
+			nextQuery(safeNext(r.URL.Query().Get("next")))
 		data.Error = errorKey(r.URL.Query().Get("error"))
 		w.Header().Set("Cache-Control", "no-store")
 		respondHTML(w, r, templates.LoginPage(data))
@@ -90,18 +106,18 @@ func AuthGoogleStart(logger *zap.Logger) http.HandlerFunc {
 		oauthState, err := randomToken()
 		if err != nil {
 			logger.Error("failed to generate oauth state", zap.Error(err))
-			http.Redirect(w, r, "/auth/login?error=failed", http.StatusFound)
+			redirect(w, r, "/auth/login?error=failed")
 			return
 		}
 		nonce, err := randomToken()
 		if err != nil {
 			logger.Error("failed to generate oauth nonce", zap.Error(err))
-			http.Redirect(w, r, "/auth/login?error=failed", http.StatusFound)
+			redirect(w, r, "/auth/login?error=failed")
 			return
 		}
 
 		next := safeNext(r.URL.Query().Get("next"))
-		setOAuthStateCookie(w, state.Config, oauthState, nonce, next)
+		setOAuthStateCookie(r.Context(), w, state.Config, oauthState, nonce, next)
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, auth.AuthorizationURL(state.Config, oauthState, nonce), http.StatusFound)
 	}
@@ -119,11 +135,11 @@ func AuthGoogleCallback(logger *zap.Logger) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-store")
 
 		stored, ok := readOAuthStateCookie(r, cfg)
-		clearOAuthStateCookie(w, cfg)
+		clearOAuthStateCookie(r.Context(), w, cfg)
 		if !ok {
 			logger.Warn("oauth callback without a valid state cookie",
 				zap.String("ip", mw.ClientIPFromRequest(r)))
-			http.Redirect(w, r, "/auth/login?error=expired", http.StatusFound)
+			redirect(w, r, "/auth/login?error=expired")
 			return
 		}
 
@@ -138,12 +154,12 @@ func AuthGoogleCallback(logger *zap.Logger) http.HandlerFunc {
 
 		if errParam := r.URL.Query().Get("error"); errParam != "" {
 			logger.Warn("oauth provider returned an error", zap.String("error", errParam))
-			http.Redirect(w, r, "/auth/login?error=failed", http.StatusFound)
+			redirect(w, r, "/auth/login?error=failed")
 			return
 		}
 		code := r.URL.Query().Get("code")
 		if code == "" {
-			http.Redirect(w, r, "/auth/login?error=failed", http.StatusFound)
+			redirect(w, r, "/auth/login?error=failed")
 			return
 		}
 
@@ -163,13 +179,13 @@ func AuthGoogleCallback(logger *zap.Logger) http.HandlerFunc {
 				zap.String("ip", mw.ClientIPFromRequest(r)))
 			// No cookie is issued: authenticating with Google proves who you
 			// are, not that you are welcome.
-			http.Redirect(w, r, "/auth/denied", http.StatusFound)
+			redirect(w, r, "/auth/denied")
 			return
 		}
 
-		if err := auth.IssueSession(w, cfg, email); err != nil {
+		if err := auth.IssueSession(r.Context(), w, cfg, email); err != nil {
 			logger.Error("failed to issue session", zap.Error(err))
-			http.Redirect(w, r, "/auth/login?error=failed", http.StatusFound)
+			redirect(w, r, "/auth/login?error=failed")
 			return
 		}
 		logger.Info("login succeeded",
@@ -177,8 +193,10 @@ func AuthGoogleCallback(logger *zap.Logger) http.HandlerFunc {
 			zap.String("ip", mw.ClientIPFromRequest(r)))
 
 		// Re-validate the destination at the point of use, not only when it
-		// was stored.
-		http.Redirect(w, r, safeNext(stored.Next), http.StatusFound)
+		// was stored. safeNext keeps it dashboard-relative; redirect() puts it
+		// back under this dashboard's prefix, which is what makes a stored
+		// destination unable to escape to another dashboard.
+		redirect(w, r, safeNext(stored.Next))
 	}
 }
 
@@ -190,14 +208,14 @@ func AuthLogout(logger *zap.Logger) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		auth.ClearSession(w, state.Config)
+		auth.ClearSession(r.Context(), w, state.Config)
 		w.Header().Set("Cache-Control", "no-store")
 		if r.Header.Get("HX-Request") == "true" {
-			w.Header().Set("HX-Redirect", "/auth/login")
+			w.Header().Set("HX-Redirect", config.PrefixPathFrom(r.Context(), "/auth/login"))
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		http.Redirect(w, r, "/auth/login", http.StatusFound)
+		redirect(w, r, "/auth/login")
 	}
 }
 
@@ -209,20 +227,31 @@ type oauthState struct {
 	Next  string `json:"x"`
 }
 
-func oauthCookieName(cfg *config.AuthConfig) string {
+func oauthCookieName(ctx context.Context, cfg *config.AuthConfig) string {
+	name := oauthStateCookiePlain
 	if cfg.CookieSecure() {
-		return oauthStateCookieSecure
+		name = oauthStateCookieSecure
 	}
-	return oauthStateCookiePlain
+	return name + oauthCookieSuffix(config.BasePathFrom(ctx))
 }
 
-func setOAuthStateCookie(w http.ResponseWriter, cfg *config.AuthConfig, state, nonce, next string) {
+// oauthCookieSuffix turns a base path into a cookie-name suffix. The prefix
+// charset (config.ParseBasePath) is already a subset of what a cookie name
+// allows, so only the separators change.
+func oauthCookieSuffix(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	return "_" + strings.ReplaceAll(strings.Trim(prefix, "/"), "/", "_")
+}
+
+func setOAuthStateCookie(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig, state, nonce, next string) {
 	payload, err := json.Marshal(oauthState{State: state, Nonce: nonce, Next: next})
 	if err != nil {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     oauthCookieName(cfg),
+		Name:     oauthCookieName(ctx, cfg),
 		Value:    base64.RawURLEncoding.EncodeToString(payload),
 		Path:     "/",
 		HttpOnly: true,
@@ -233,7 +262,7 @@ func setOAuthStateCookie(w http.ResponseWriter, cfg *config.AuthConfig, state, n
 }
 
 func readOAuthStateCookie(r *http.Request, cfg *config.AuthConfig) (*oauthState, bool) {
-	c, err := r.Cookie(oauthCookieName(cfg))
+	c, err := r.Cookie(oauthCookieName(r.Context(), cfg))
 	if err != nil || c.Value == "" {
 		return nil, false
 	}
@@ -248,9 +277,9 @@ func readOAuthStateCookie(r *http.Request, cfg *config.AuthConfig) (*oauthState,
 	return &s, true
 }
 
-func clearOAuthStateCookie(w http.ResponseWriter, cfg *config.AuthConfig) {
+func clearOAuthStateCookie(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     oauthCookieName(cfg),
+		Name:     oauthCookieName(ctx, cfg),
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,

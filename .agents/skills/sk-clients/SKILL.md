@@ -314,7 +314,9 @@ curl -s https://example.com/acme | grep -oE '(href|src|hx-get)="/[^"]*"' | sort 
 # 3. It serves ITS services and nobody else's.
 curl -s https://example.com/acme/api/services
 
-# 4. The host surface is absent for it. Every one of these must be 404.
+# 4. The host surface is absent for it. None of these may answer 200: a public
+#    dashboard gives 404 (the route is not registered), a gated one gives
+#    401/302 because the auth gate sits above the router.
 for p in api/services/proxy api/docker/stats/x/y api/widgets/resources \
          api/validate api/scripts; do
   curl -so /dev/null -w "$p %{http_code}\n" "https://example.com/acme/$p"

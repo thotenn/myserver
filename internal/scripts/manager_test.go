@@ -33,6 +33,30 @@ func TestRegister_HappyPath(t *testing.T) {
 	assert.True(t, mgr.Has("hello"))
 }
 
+func TestRegister_ScriptDirBehindASymlink(t *testing.T) {
+	// A scriptDir that is itself reached through a symlink must still work.
+	// The containment check compares the resolved script path against the
+	// resolved directory; comparing it against the UNRESOLVED one reported a
+	// traversal for every path under a symlinked parent — which is what every
+	// temp dir on macOS is (/var -> /private/var), and what a deployment that
+	// bind-mounts its scripts through a symlinked path would hit too.
+	real := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(real, "hello.sh"),
+		[]byte("#!/bin/bash\necho hello\n"), 0o755))
+	link := filepath.Join(t.TempDir(), "scripts-link")
+	require.NoError(t, os.Symlink(real, link))
+
+	mgr := NewManager([]string{link}, 5, 30, 5)
+	require.NoError(t, mgr.Register(&ScriptConfig{Name: "hello", Command: "hello.sh"}))
+	assert.True(t, mgr.Has("hello"))
+
+	// And the escape is still refused through the symlinked dir.
+	outside := filepath.Join(t.TempDir(), "evil.sh")
+	require.NoError(t, os.WriteFile(outside, []byte("#!/bin/bash\n"), 0o755))
+	err := mgr.Register(&ScriptConfig{Name: "evil", Command: "../" + filepath.Base(filepath.Dir(outside)) + "/evil.sh"})
+	assert.Error(t, err, "a path resolving outside the symlinked dir must still be refused")
+}
+
 func TestValidateScript_RejectsAbsolutePath(t *testing.T) {
 	mgr, _ := newTestManager(t)
 	err := mgr.Register(&ScriptConfig{

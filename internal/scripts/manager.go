@@ -330,7 +330,22 @@ func (m *Manager) validateScript(cfg *ScriptConfig) error {
 	var lastErr error
 	for _, dir := range m.scriptDirs {
 		cleanDir := filepath.Clean(dir)
-		candidate := filepath.Join(cleanDir, cfg.Command)
+		// BOTH sides of the containment check have to be symlink-resolved.
+		// Comparing a resolved path against an unresolved directory reports a
+		// traversal whenever the directory itself sits behind a symlink —
+		// which is every temp dir on macOS (/var -> /private/var), so the
+		// whole test suite failed there while production on Linux was fine.
+		// Resolved-vs-resolved is also the stricter comparison: it is what
+		// actually answers "is the file I am about to run inside the
+		// directory I trust".
+		realDir, err := filepath.EvalSymlinks(cleanDir)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				lastErr = err
+			}
+			continue
+		}
+		candidate := filepath.Join(realDir, cfg.Command)
 		real, err := filepath.EvalSymlinks(candidate)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -340,9 +355,9 @@ func (m *Manager) validateScript(cfg *ScriptConfig) error {
 			continue
 		}
 
-		// Enforce that the resolved path is strictly inside cleanDir (with
+		// Enforce that the resolved path is strictly inside realDir (with
 		// separator) to defeat prefix-collision attacks like /app/scriptsbak/.
-		if real != cleanDir && !strings.HasPrefix(real, cleanDir+string(os.PathSeparator)) {
+		if real != realDir && !strings.HasPrefix(real, realDir+string(os.PathSeparator)) {
 			return fmt.Errorf("path traversal detected: %s resolves outside %s", cfg.Command, cleanDir)
 		}
 
@@ -366,7 +381,7 @@ func (m *Manager) validateScript(cfg *ScriptConfig) error {
 		}
 
 		// Also verify the containing directory is not world-writable.
-		dirInfo, err := os.Stat(cleanDir)
+		dirInfo, err := os.Stat(realDir)
 		if err == nil && dirInfo.Mode().Perm()&0o002 != 0 {
 			return fmt.Errorf("script directory is world-writable: %s", cleanDir)
 		}

@@ -20,9 +20,13 @@ import (
 // MyServer's customapi widget interprets a top-level "error" key as an API
 // failure (see CLAUDE.md note).
 func Ping(w http.ResponseWriter, r *http.Request) {
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
 	host := r.URL.Query().Get("host")
 	if host != "" {
-		if !isAllowedPingHost(host) {
+		if !isAllowedPingHost(d, host) {
 			writeJSONError(w, "host not allowed", http.StatusForbidden)
 			return
 		}
@@ -30,7 +34,7 @@ func Ping(w http.ResponseWriter, r *http.Request) {
 		group := r.URL.Query().Get("groupName")
 		service := r.URL.Query().Get("serviceName")
 		if group != "" && service != "" {
-			host = resolvePingHost(group, service)
+			host = resolvePingHost(d, group, service)
 		}
 	}
 
@@ -92,10 +96,10 @@ func writeJSONError(w http.ResponseWriter, msg string, status int) {
 	})
 }
 
-// resolvePingHost finds the ping URL for a service by looking it up in
-// services.yaml.
-func resolvePingHost(group, service string) string {
-	groups, err := config.LoadServices()
+// resolvePingHost finds the ping URL for a service by looking it up in the
+// services.yaml of the dashboard the request is being served for.
+func resolvePingHost(d *config.Dashboard, group, service string) string {
+	groups, err := d.Services()
 	if err != nil {
 		return ""
 	}
@@ -112,10 +116,14 @@ func resolvePingHost(group, service string) string {
 	return ""
 }
 
-// isAllowedPingHost reports whether the given host matches a ping field in
-// any configured service.
-func isAllowedPingHost(target string) bool {
-	groups, err := config.LoadServices()
+// isAllowedPingHost reports whether the given host matches a ping field in a
+// service of THIS dashboard.
+//
+// The scoping is the security property: resolved against every dashboard's
+// config, `?host=` would let one client turn the server into a probe for hosts
+// named in another client's services.yaml.
+func isAllowedPingHost(d *config.Dashboard, target string) bool {
+	groups, err := d.Services()
 	if err != nil {
 		return false
 	}

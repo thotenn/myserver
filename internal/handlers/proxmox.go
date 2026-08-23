@@ -7,12 +7,15 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/thotenn/myserver/internal/config"
 	"github.com/thotenn/myserver/internal/proxy"
 )
 
 // ProxmoxStats handles GET /api/proxmox/stats/{vmid}/{server}.
 func ProxmoxStats(w http.ResponseWriter, r *http.Request) {
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
 	vmid := chi.URLParam(r, "vmid")
 	server := chi.URLParam(r, "server")
 
@@ -21,7 +24,7 @@ func ProxmoxStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxmoxConfigs, err := config.LoadProxmox()
+	proxmoxConfigs, err := d.Proxmox()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

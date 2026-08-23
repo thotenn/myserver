@@ -10,8 +10,8 @@ Target: ~50–80 MiB RAM, single ~14 MB binary, ~30 MB Docker image.
 - **Agent skill — the dashboards themselves**: `.agents/skills/sk-clients/`.
   How many there are, which config directory feeds each one, which URL prefix it
   answers on, and who is allowed in. Read it before adding or changing a
-  dashboard, and before touching `HOMEPAGE_BASE_PATH` or a per-dashboard
-  `auth.yaml`.
+  dashboard, and before touching `HOMEPAGE_BASE_PATH`, a slug, or a
+  per-dashboard `auth.yaml`.
 - **Agent skill — change the UI code itself** (Templ, Tailwind, HTMX, the
   handlers that render HTML): `.agents/skills/sk-ui/`. Read it before touching
   anything under `internal/templates/` or `web/`.
@@ -50,14 +50,14 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 | Package | Role | Notes |
 |---|---|---|
 | `cmd/myserver` | Entry point. Wires logger, config, watcher, scripts, router, server. | `main()` is decomposed into `initLogger / initConfig / initWidgets / initWatcher / initScriptManager / startServer`. |
-| `internal/config` | YAML loaders, env substitution, fsnotify watcher, in-memory cache. | No dependency on other internal packages — it is the foundation. Hash in `atomic.Value`. |
+| `internal/config` | `Dashboard` (one served dashboard: its directory, snapshot, auth policy, prefix), the registry, YAML loaders, env substitution, multi-directory fsnotify watcher. | No dependency on other internal packages — it is the foundation. **Nothing here is a package-level accessor for "the" config**; see §Dashboards. |
 | `internal/handlers` | HTTP handlers. | Content negotiation via `HX-Request` header: HTML (Templ) for HTMX, JSON for API clients. |
 | `internal/templates` | Templ sources + `*_templ.go` (committed) + helpers (`urls.go`, `icons.go`, `styles.go`, `layout.go`, `format.go`) + `i18n.go`. | |
 | `internal/widgets` | Declarative registry (46 widget types + 4 aliases) + `BaseWidget` + interfaces. | `GenericProxyHandler` reads `APITemplate()` and `Mappings()` from the registry at request time. |
 | `internal/auth` | Optional email allowlist: session cookie (HMAC), Google OAuth, `trustedHeader` provider. Stdlib only. | Depends on `internal/config` and nothing else, so `internal/middleware` can import it without a cycle. |
 | `internal/proxy` | Secure HTTP proxy. SSRF guard, transport pool, gzip/zlib decompression, `file://` scheme, TTL cache. | `scrubError()` sanitizes credentials in error strings. |
 | `internal/scripts` | Opt-in script execution. | Strong sandboxing. Hot-reloaded by the config watcher via `Manager.ReplaceAll`. |
-| `internal/middleware` | Recovery, Logging, RateLimit, CORS (same-origin), HostValidation (port-aware), SecurityHeaders (CSP, HSTS opt-in), TrustedProxy, Auth (the allowlist gate). | |
+| `internal/middleware` | `Dispatch` (the edge: URL → dashboard), Recovery, Logging, RateLimit, CORS (same-origin), HostValidation (port-aware), SecurityHeaders (CSP, HSTS opt-in), TrustedProxy, Auth (the allowlist gate). | |
 | `internal/discovery` | Docker/Podman label discovery + `MergeServices` (config wins over discovery). | |
 | `web/static`, `web/tailwind` | Compiled CSS/JS + Tailwind source. `input.css` uses `@layer base` with `@apply`. | |
 
@@ -134,52 +134,97 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 ### Static assets & cache busting
 
 - **The `?v=` on `/static/*` is `handlers.AssetVersion()`, a content hash of the
-  BUILD OUTPUT — never `config.CurrentHash()`.** The config hash is derived from
+  BUILD OUTPUT — never the config hash.** The config hash is derived from
   the user's YAML files alone, so a deploy that shipped a new `main.css` without
   a config change produced the identical URL and browsers kept the cached
   stylesheet (`max-age=86400`) against freshly rendered markup. New class names
   met an old file; the page looks structurally broken, which sends you hunting
   through CSS instead of through caching. Covered by
   `TestHashStaticAssets_ChangesWithContent`.
-- **`config.CurrentHash()` still owns the `config-hash` meta tag and the
-  `/api/hash` reload poll**, and must keep tracking the config and only the
-  config. The two hashes answer different questions; do not merge them.
+- **The config hash (`Dashboard.Hash()`) still owns the `config-hash` meta tag
+  and the `/api/hash` reload poll**, and must keep tracking the config and only
+  the config. The two hashes answer different questions; do not merge them.
+  `AssetVersion()` is process-wide (one build); the config hash is per
+  dashboard, so one client's edit does not reload everyone else's browser.
 - Consequence for any markup change: a new custom class in `input.css` only
   works if the CSS is recompiled AND the browser refetches it. Both are now
   automatic; a stale view in dev is a hard reload away.
 
-### Base path (`HOMEPAGE_BASE_PATH`)
+### Dashboards (multi-tenancy + `HOMEPAGE_BASE_PATH`)
 
-- **Inside a handler, a path is always relative to the dashboard. The prefix is
-  added only when a URL is EMITTED.** `middleware.BasePath` strips it at the
-  edge and puts it on the request context, so chi's patterns,
-  `http.StripPrefix("/static/")` and the auth gate's public-path allowlist keep
-  matching the same paths they matched before the option existed. Never "fix" a
-  path comparison by prepending the prefix to it — that reintroduces the bug
-  this design avoids (`/team/static/…` not matching `/static/`, which puts the
-  login page's CSS behind the login gate).
+**One process serves every dashboard.** The root one from `HOMEPAGE_CONFIG_DIR`,
+and one per sub-directory of `<config dir>/dashboards/`, served at `/<slug>`.
+`HOMEPAGE_BASE_PATH` puts the whole thing under a prefix, so a client's prefix is
+`<basePath>/<slug>`.
+
+- **A handler never asks for "the" config. It asks the dashboard on its
+  context**: `config.DashboardFrom(ctx)` (in `internal/handlers`, through
+  `dashboardOf(w, r)`, which 500s rather than guess). There is deliberately no
+  `config.LoadServices()`, `config.Auth()`, `config.CurrentHash()` or
+  `config.GetCachedConfig()` any more — they were **deleted, not deprecated**.
+  With several dashboards in a process, a handler that can reach a global config
+  can serve one client's services to another, and through the widget proxy can
+  call an upstream with another client's API key. Making it a parameter turns
+  that from a review item into a compile error. **If you find yourself adding a
+  package-level config accessor back, that is the bug.**
+- **`config.ConfigDir()` is the ROOT directory**, for the registry and the
+  watcher only. A handler that reads it instead of `d.Dir` has just made every
+  dashboard read the root's files.
+- **The edge decides once.** `middleware.Dispatch` resolves the URL to a
+  dashboard, strips that dashboard's prefix, and puts it on the context.
+  Everything downstream sees the same paths it saw when there was one dashboard
+  at the root, so chi's patterns, `http.StripPrefix("/static/")` and the auth
+  gate's public-path allowlist keep matching what they always matched. Never
+  "fix" a path comparison by prepending a prefix to it — that reintroduces the
+  bug this design avoids (`/team/static/…` not matching `/static/`, which puts
+  the login page's CSS behind the login gate).
 - **Every emitted URL goes through a builder in `internal/templates/urls.go`**,
   and every redirect through `handlers.redirect` / `config.PrefixPathFrom`. A
   literal `"/api/…"` or `http.Redirect(w, r, "/auth/login", …)` is a bug that
-  only shows up in a prefixed deployment.
-- **Two accessors, and they are not interchangeable.** `config.BasePath()` reads
-  the env var and is memoised; only `handlers.API` and `cmd/myserver` may call
-  it. Everything else reads `config.BasePathFrom(ctx)` — the prefix of *this*
-  request. Inside a `templ` component `ctx` is in scope, which is why the URL
-  builders take it instead of the components growing a parameter.
+  only shows up on a prefixed or tenanted deployment.
+- **`config.BasePath()` reads the env var and is memoised; only `cmd/myserver`
+  and the registry may call it.** Everything else reads
+  `config.BasePathFrom(ctx)` — the prefix of *this* request, published by
+  `WithDashboard` from the dashboard itself so the two cannot drift. Inside a
+  `templ` component `ctx` is in scope, which is why the URL builders take it
+  instead of the components growing a parameter.
+- **A client dashboard's surface is a subset, and it is expressed by NOT
+  REGISTERING the rest** (`setupClientRoutes` in `handlers/api.go`): page,
+  `/static`, `/auth/*`, and `/api/{services,bookmarks,widgets,hash,config/{path},
+  ping,siteMonitor,healthcheck}`. No widget proxy (it forwards credentials from a
+  config file), no scripts (shell on the host), no docker/proxmox (they describe
+  the host), no `/api/reload` or `/api/validate`, no info-widget data endpoints
+  (`/api/widgets/resources` reports the HOST's CPU and RAM). Those routes do not
+  403 for a client — **they do not exist**, which is the only kind of check a
+  later handler cannot get wrong. Adding a route to `setupRoutes` does not expose
+  it to clients; adding one to `setupClientRoutes` is a security decision.
+- **Docker discovery is merged into the ROOT dashboard's `/api/services` only.**
+  Containers run on the host; folding them into a client's list publishes the
+  host's inventory.
 - **`next` stays dashboard-relative** and is re-rooted under the prefix when
-  used, which is what confines a caller-supplied destination to this dashboard.
-  `safeNext` keeps doing only what it did: reject off-site and
-  protocol-relative values.
-- **Cookies:** the session cookie's `Path` is the prefix. The OAuth state cookie
-  cannot be scoped that way — `__Host-` requires `Path=/` — so its NAME carries
-  the base path instead.
+  used, which is what confines a caller-supplied destination to its dashboard.
+  `safeNext` keeps doing only what it did: reject off-site and protocol-relative
+  values.
+- **Slugs are validated and three are reserved** (`api`, `auth`, `static`), since
+  a directory named after one would shadow the root router. Charset is the base
+  path's (`[A-Za-z0-9._~-]`), so a slug never needs escaping in a prefix, a
+  cookie name or a redirect. A rejected directory is logged and skipped, never
+  served.
+- **A dashboard directory that appears at runtime is served without a restart.**
+  The watcher watches `<config dir>/dashboards/` for new entries, rescans, and
+  reloads whatever is new. A rescan REUSES the `*Dashboard` of every slug that
+  survives it (`ScanDashboards(prev, …)`) — a fresh one would mint a new
+  session-signing key and drop its snapshot, so adding one client would sign
+  every other client out.
 - **The prefix must not be interpolated into a `<script>`** (see §Templ). It
   reaches the browser as `<meta name="base-path">`, emitted only when non-empty
   so the unprefixed HTML stays byte-identical, and `app.js` reads it.
-- Unset means the pre-feature code path, verified byte-for-byte against the
-  previous binary (HTML, `/api/services`, headers, cookies, redirect targets).
-  Keep `TestBasePath_AbsentLeavesTheHTMLUntouched` passing.
+- **No base path and no `dashboards/` directory ⇒ the pre-feature code path**,
+  verified byte for byte against the previous binary (HTML, `/api/services`,
+  headers, cookies, redirect targets, and the whole auth surface with the gate
+  both on and off). Keep `TestBasePath_AbsentLeavesTheHTMLUntouched` passing, and
+  re-run the comparison against the previous binary — not just the tests —
+  before claiming it.
 
 ### customapi display modes
 
@@ -192,10 +237,20 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 
 ### Config & hot-reload
 
-- Handlers MUST read `config.CurrentHash()` (atomic.Value) per request. Never
-  capture the hash in a closure at startup.
-- The fsnotify watcher reacts to `.yaml`, `.yml`, `.css`, `.js` changes.
-  All config caches and the hash are refreshed atomically.
+- Handlers MUST read the hash per request, from their dashboard
+  (`config.DashboardFrom(ctx).Hash()`). Never capture it in a closure at startup.
+- **The watcher watches one directory per dashboard, plus `dashboards/`
+  itself.** fsnotify is not recursive, so each is added explicitly and the set is
+  re-synced after every rescan. A change reloads **only the dashboard it belongs
+  to**, and `onChange` runs the process-wide work (proxy cache, docker clients,
+  scripts) only for the root — see `startWatcher` in `cmd/myserver/main.go`.
+- The watcher reacts to `.yaml`, `.yml`, `.css`, `.js` changes; a dashboard's
+  snapshot and hash are swapped atomically.
+- **`EnsureSkeleton` seeds the ROOT config directory only, once, at startup.**
+  It is deliberately not a side effect of loading any more: a client dashboard
+  legitimately holds only the files its operator wrote, and seeding it would drop
+  the demo dashboard into somebody else's. A missing file reads as "nothing
+  configured", not as an error.
 - `scripts.yaml` is hot-reloaded too — the watcher calls
   `scripts.Manager.ReplaceAll()`. No restart needed.
 - **`settings.scripts.scriptDirs` is read only at `initScripts()`** in
@@ -204,11 +259,11 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
   `maxTimeout`, `defaultTimeout`, `maxConcurrent` require a process restart.
 - Env substitution: `{{HOMEPAGE_VAR_X}}` → env value, `{{HOMEPAGE_FILE_X}}` →
   file contents. If unresolved, the placeholder is kept literally (fail-visible).
-- **`/api/validate` re-reads from disk on purpose** (`config.ValidateFromDisk`).
-  It must never be rebuilt on the cached loaders: `ReloadCache` discards their
-  errors (`c.Services, _ = loadServices()`), so a cache-backed check answers
-  `valid: true` for a file it failed to parse. That was the behaviour until it
-  was fixed.
+- **`/api/validate` re-reads from disk on purpose**
+  (`config.ValidateFromDisk(dir)`). It must never be rebuilt on the snapshot:
+  `Dashboard.Reload` discards loader errors (`c.Services, _ = loadServices(dir)`),
+  so a snapshot-backed check answers `valid: true` for a file it failed to parse.
+  That was the behaviour until it was fixed. The route is root-only.
 - **`/api/validate` is still not a strict parser.** Go's `yaml.v3` accepts
   ambiguous syntax like `key:{flow}` (missing space after `:`) and silently
   produces the wrong shape. Strict YAML parsers reject it. When debugging
@@ -244,16 +299,22 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
   pre-feature behaviour — no cookies, no redirects, same CSP (`form-action` is
   added only when auth is on), `/auth/*` answers 404. There is a regression
   test for this; keep it passing.
-- **Never let a config failure mean "public".** `AuthConfig` lives in its own
-  `atomic.Value` (`internal/config/auth.go`), NOT in `cachedConfig` — that one
-  discards load errors (`c.Settings, _ = loadSettings()`), and a policy that
-  silently became nil would publish the dashboard. Broken file with a previous
+- **The policy is per dashboard.** `Dashboard.Auth()` / `Dashboard.ReloadAuth()`,
+  never a package-level accessor. Two dashboards on one host have two allowlists,
+  two signing keys and two cookie names.
+- **Never let a config failure mean "public".** Each dashboard's `AuthConfig`
+  lives in its own `atomic.Value` on the `Dashboard`, NOT in `cachedConfig` —
+  that one discards load errors (`c.Settings, _ = loadSettings(dir)`), and a
+  policy that silently became nil would publish the dashboard. Broken file with a previous
   good policy ⇒ keep it, degraded. Broken with nothing to fall back on, or a
   file that vanished ⇒ lockdown 503. Only a well-formed empty allowlist opens
   up. Full table in `docs/context/authentication.md`.
-- **Startup may be fatal, hot-reload never is.** `initAuth` in
-  `cmd/myserver/main.go` refuses to start on a bad policy; the watcher only
-  logs and keeps the last known good one.
+- **Startup may be fatal for the ROOT dashboard, never for a client, and
+  hot-reload never is.** `initAuth` in `cmd/myserver/main.go` refuses to start on
+  a bad root policy; a client with a bad one is already failing closed on its own
+  subtree (503, logged on every request), and killing the host over one client's
+  YAML would turn one broken dashboard into everyone's outage. The watcher only
+  logs and keeps the last known good policy.
 - **The gate reads the policy per request**, never captured in the middleware
   closure — that is what makes the allowlist hot-reloadable and evicts a
   removed address on their next request. Same rule as `config.CurrentHash()`.
@@ -266,6 +327,27 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
   allowlist is empty. Registering them conditionally (the scripts pattern)
   would lock the operator out when they enable auth by editing the YAML,
   since the gate arms live but the login page would not exist until a restart.
+- **The session cookie's NAME carries the slug, and the signing key is per
+  dashboard.** Dashboards share a hostname, so `Path` alone is not enough: a
+  request to `/acme` carries both the root's `Path=/` cookie and the client's,
+  and same-named cookies are ambiguous. `Dashboard.CookieName` / `SessionSecret`
+  own both. The root dashboard's name is unchanged.
+- **⚠️ The shared Google callback: the slug lives INSIDE the signed OAuth state,
+  and it decides which allowlist judges the login.** One callback completes
+  logins for every dashboard that points its `redirectURL` at it — that is what
+  keeps the identity provider to a single registered redirect URI, and it is the
+  operational cost this whole feature exists to delete. The callback therefore
+  cannot ask for a cookie by name; it scans every state cookie the browser sent
+  (they are all `Path=/`), verifies the signature, and matches the state the
+  provider echoed back. **The state cookie is signed** (`internal/auth/state.go`,
+  a per-process random key) precisely so that the slug in it is not something the
+  caller can rewrite in their own browser. Never read the slug from the query,
+  and never accept an unverified payload. A dashboard may still declare its own
+  `clientId`/`redirectURL` and skip the shared callback.
+- **`/auth/google/callback` still 404s when nothing on the host has a login.**
+  It resolves the flow first and only then falls back to the serving dashboard's
+  policy, so the auth-off surface stays byte-identical — including the absence of
+  `Cache-Control` on that 404.
 - **No new dependencies.** The id_token's signature is intentionally not
   verified: it arrives over direct TLS from the token endpoint, the case OIDC
   Core §3.1.3.7(6) allows. `iss`/`aud`/`exp`/`nonce`/`email_verified` are still
@@ -294,6 +376,18 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 - SSRF: `proxy.Proxy` resolves DNS, blocks cloud-metadata IPs always, and
   blocks RFC1918 + loopback unless `HOMEPAGE_ALLOW_PRIVATE_HOSTS=true`
   (default `true`, since the dominant use case is self-hosted).
+- **Tenant isolation is the highest-severity property in the codebase**, and it
+  is held up by three things, in this order: the deleted global accessors (a
+  handler cannot read another dashboard's config), the client router's route list
+  (the dangerous endpoints do not exist there), and per-dashboard caches. The
+  per-dashboard cache key is not an optimisation: `mergedServicesCache` was one
+  process-wide value guarded by one process-wide hash, which answered whichever
+  dashboard asked with whatever the previous request left in it.
+  `internal/handlers/tenants_test.go` pins all of it — read it before changing
+  anything in this area.
+- `ping` and `siteMonitor` resolve against the requesting dashboard's own
+  services and refuse a host or URL that dashboard does not list. Unscoped, they
+  turn the server into a probe for hosts named in someone else's config.
 - Credential sanitization: `/api/widgets` and `/api/services` deep-strip keys
   matched by `IsSensitiveKey` (case-insensitive substring) and remove
   basic-auth userinfo + sensitive query params from **every** URL-bearing
@@ -301,7 +395,7 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
   through `sanitizeLabels`: sensitive keys dropped, URL values scrubbed,
   non-URL values returned byte for byte (round-tripping arbitrary text
   through `url.Parse` would rewrite escapes). The HTML dashboard renders
-  from `config.LoadServices()` and is not affected by this stripping.
+  from the dashboard's own `Services()` and is not affected by this stripping.
 - **`Service.Labels` is parsed and sanitized but never rendered.** No template
   prints it, so it only reaches `/api/services`. Anything meant to be visible
   on a card goes in `description` (or a `customapi` widget); do not plan a
@@ -322,6 +416,7 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 | `internal/middleware` | 38.9% | `HostValidation`: defaults, wildcard, port-awareness, case. |
 | `internal/auth` + auth tests in `config`/`handlers` | — | Allowlist matching, forged/expired/foreign-key cookies, id_token claim validation, open-redirect `next`, the gate over every content path, scripts gated, lockdown, `trustedHeader` from an untrusted peer, broken YAML on hot-reload, and auth-off regression. |
 | `internal/handlers` | 10.2% | Basic-auth strip, recursive widget sanitization, scripts disabled → 404. |
+| `internal/handlers` (tenants) | — | `tenants_test.go`: `/api/services` does not cross dashboards, per-dashboard hash, the proxy and the whole host surface absent for a client, probes confined to their own services, config files read from their own directory (traversal included), session cookies that do not authenticate elsewhere (even renamed, even with a shared signing key), a public client next to a gated root, lockdown confined to one subtree, hot-add, reserved slugs, and the shared OAuth callback (the slug is signed, a tampered one issues nothing). |
 
 ---
 
@@ -347,7 +442,9 @@ make dashboard SLUG=acme  # scaffold a client dashboard config (sk-clients)
 - Multi-stage Docker. Runtime: `alpine:3.21` + `su-exec` + `bash` + `docker-cli`
   + `wget` + `tini` + `tzdata`. User `myserver:1000` non-root.
 - Required mounts:
-  - `/srv/myserver/config → /app/config` — host bind, hot-reloaded.
+  - `/srv/myserver/config → /app/config` — host bind, hot-reloaded. It carries
+    every dashboard: the root one at the top, one per directory under
+    `dashboards/`. A new client is a directory, not a container.
   - `/var/run/docker.sock` — Docker stats + script wrappers (mount `:ro` if
     scripts don't need to mutate containers).
 - Key env: `HOMEPAGE_ALLOWED_HOSTS`, `HOMEPAGE_SCRIPTS_ENABLED`,

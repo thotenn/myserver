@@ -5,24 +5,28 @@ import (
 )
 
 func BenchmarkConfigHash(b *testing.B) {
+	dir := b.TempDir()
+	_ = EnsureSkeleton(dir)
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ConfigHash()
+		_, _ = configHash(dir)
 	}
 }
 
 func BenchmarkLoadServices(b *testing.B) {
-	// Warm cache
-	_, _ = LoadServices()
+	dir := b.TempDir()
+	_ = EnsureSkeleton(dir)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = LoadServices()
+		_, _ = loadServices(dir)
 	}
 }
 
 func BenchmarkLoadSettings(b *testing.B) {
-	_, _ = LoadSettings()
+	dir := b.TempDir()
+	_ = EnsureSkeleton(dir)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = LoadSettings()
+		_, _ = loadSettings(dir)
 	}
 }

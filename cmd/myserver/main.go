@@ -69,47 +69,96 @@ func initConfig(logger *zap.Logger) {
 	if prefix := config.BasePath(); prefix != "" {
 		logger.Info("serving under a base path", zap.String("basePath", prefix))
 	}
-	config.ReloadCache()
-	logger.Info("config cache initialised")
+	// The example files seed the ROOT config directory only: a client
+	// dashboard's directory is written by the operator, and dropping the demo
+	// dashboard into it would publish it to that client.
+	if err := config.EnsureSkeleton(config.ConfigDir()); err != nil {
+		logger.Warn("failed to seed the config directory", zap.Error(err))
+	}
+
+	set, errs := config.InitDashboards()
+	for _, err := range errs {
+		logger.Warn("ignoring a dashboard directory", zap.Error(err))
+	}
+	for _, d := range set.All() {
+		d.Reload()
+	}
+	for _, d := range set.Clients() {
+		logger.Info("serving a client dashboard",
+			zap.String("dashboard", d.String()),
+			zap.String("prefix", d.Prefix))
+	}
+	logger.Info("config cache initialised", zap.Int("dashboards", len(set.All())))
 }
 
-// initAuth reports the authentication policy at startup and refuses to run
-// with one that is broken.
+// initAuth reports every dashboard's authentication policy at startup and
+// refuses to run with a broken one on the root dashboard.
 //
 // Startup is the only place that may be fatal. Once the process is serving,
-// a bad edit to auth.yaml must never take the dashboard down or, far worse,
+// a bad edit to auth.yaml must never take a dashboard down or, far worse,
 // open it: the watcher keeps the last known good policy instead.
+//
+// The root dashboard is fatal and a client is not, and the asymmetry is
+// deliberate. A client with an unreadable policy is already failing closed —
+// its own subtree answers 503 and says so in the log on every request — and
+// taking the whole host down over one client's YAML would turn one broken
+// dashboard into an outage for everybody else's.
 func initAuth(logger *zap.Logger) {
-	state := config.Auth()
+	for _, d := range config.Dashboards().All() {
+		initDashboardAuth(logger, d)
+	}
+}
+
+func initDashboardAuth(logger *zap.Logger, d *config.Dashboard) {
+	state := d.Auth()
+	log := logger.With(zap.String("dashboard", d.String()),
+		zap.String("file", config.AuthFile))
 
 	if state.Err != nil {
-		logger.Fatal("authentication is configured but unusable; refusing to start",
-			zap.Error(state.Err),
-			zap.String("file", config.AuthFile))
+		if d.IsRoot() {
+			log.Fatal("authentication is configured but unusable; refusing to start",
+				zap.Error(state.Err))
+		}
+		log.Error("authentication is configured but unusable; this dashboard "+
+			"will answer 503 until it is fixed", zap.Error(state.Err))
+		return
 	}
 	if !state.Required {
 		if config.AuthRequiredEnv() {
-			logger.Fatal("HOMEPAGE_AUTH_REQUIRED=true but no allowlist is configured",
-				zap.String("file", config.AuthFile))
+			if d.IsRoot() {
+				log.Fatal("HOMEPAGE_AUTH_REQUIRED=true but no allowlist is configured")
+			}
+			log.Error("HOMEPAGE_AUTH_REQUIRED=true but no allowlist is configured; " +
+				"this dashboard will answer 503")
+			return
 		}
-		logger.Info("authentication disabled: dashboard is public",
-			zap.String("file", config.AuthFile))
+		if d.IsRoot() {
+			log.Info("authentication disabled: dashboard is public")
+		} else {
+			// Client dashboards are normally gated — the allowlist is what
+			// keeps one client out of another's. A public one is allowed, but
+			// it is worth saying out loud that it is.
+			log.Warn("no allowlist: this client dashboard is PUBLIC to anyone " +
+				"who knows its URL")
+		}
 		return
 	}
 
-	logger.Info("authentication enabled",
+	log.Info("authentication enabled",
 		zap.String("provider", state.Config.ProviderName()),
 		zap.Int("allowedEmails", len(state.Config.Allowlist.Emails)),
 		zap.Int("allowedDomains", len(state.Config.Allowlist.Domains)))
 	if state.Config.UsesGeneratedSecret() {
-		logger.Warn("session.secret is not set: a random key was generated, " +
+		log.Warn("session.secret is not set: a random key was generated, " +
 			"so every restart signs everybody out")
 	}
 }
 
 func initDocker(logger *zap.Logger) []*discovery.DockerDiscoverer {
 	var discoverers []*discovery.DockerDiscoverer
-	dockerConfigs, err := config.LoadDocker()
+	// The root dashboard's: containers on the host belong to the host's own
+	// dashboard and are never merged into a client's list.
+	dockerConfigs, err := config.Dashboards().Root().Docker()
 	if err != nil || len(dockerConfigs) == 0 {
 		return discoverers
 	}
@@ -132,7 +181,7 @@ func initScripts(logger *zap.Logger) *scripts.Manager {
 		return nil
 	}
 
-	settings, _ := config.LoadSettings()
+	settings, _ := config.Dashboards().Root().Settings()
 	scriptDirs := []string{"/app/scripts"}
 	defaultTimeout := 60
 	maxTimeout := 3600
@@ -167,12 +216,19 @@ func startWatcher(logger *zap.Logger, scriptMgr *scripts.Manager) *config.Watche
 		logger.Warn("failed to create config watcher", zap.Error(err))
 		return nil
 	}
-	if err := watcher.Start(func() {
-		config.ReloadCache()
+	// The watcher has already reloaded the dashboard it hands over; what is
+	// left here is the process-wide state that hangs off the ROOT dashboard's
+	// config, which is why none of it runs for a client.
+	if err := watcher.Start(func(d *config.Dashboard) {
+		logger.Info("config reloaded",
+			zap.String("dashboard", d.String()),
+			zap.String("hash", d.Hash()))
+		logAuthReload(logger, d)
+		if !d.IsRoot() {
+			return
+		}
 		handlers.InvalidateProxyCache()
 		handlers.InvalidateDockerClients()
-		logger.Info("config reloaded", zap.String("hash", config.CurrentHash()))
-		logAuthReload(logger)
 		if scriptMgr != nil {
 			if err := registerScripts(scriptMgr, logger); err != nil {
 				logger.Warn("failed to reload scripts", zap.Error(err))
@@ -229,7 +285,7 @@ func waitForShutdown(logger *zap.Logger, srv *http.Server, dockerDiscoverers []*
 // registerScripts loads scripts.yaml and registers each script with the
 // manager. On hot-reload it replaces the entire registry atomically.
 func registerScripts(mgr *scripts.Manager, logger *zap.Logger) error {
-	sf, err := config.LoadScriptsFile()
+	sf, err := config.Dashboards().Root().ScriptsFile()
 	if err != nil {
 		return fmt.Errorf("loading scripts.yaml: %w", err)
 	}
@@ -265,20 +321,21 @@ func registerScripts(mgr *scripts.Manager, logger *zap.Logger) error {
 // logAuthReload surfaces what happened to the authentication policy after a
 // hot-reload. A policy that could not be re-read is the failure mode this
 // feature exists to make loud.
-func logAuthReload(logger *zap.Logger) {
-	state := config.Auth()
+func logAuthReload(logger *zap.Logger, d *config.Dashboard) {
+	state := d.Auth()
+	log := logger.With(zap.String("dashboard", d.String()))
 	switch {
 	case state.Lockdown:
-		logger.Error("auth policy unusable: serving 503 until it is fixed",
+		log.Error("auth policy unusable: serving 503 until it is fixed",
 			zap.Error(state.Err), zap.String("file", config.AuthFile))
 	case state.Degraded:
-		logger.Error("auth policy could not be re-read: keeping the last known good one",
+		log.Error("auth policy could not be re-read: keeping the last known good one",
 			zap.Error(state.Err), zap.String("file", config.AuthFile))
 	case state.Required:
-		logger.Info("auth policy reloaded",
+		log.Info("auth policy reloaded",
 			zap.Int("allowedEmails", len(state.Config.Allowlist.Emails)),
 			zap.Int("allowedDomains", len(state.Config.Allowlist.Domains)))
 	default:
-		logger.Info("auth policy reloaded: authentication is off, dashboard is public")
+		log.Info("auth policy reloaded: authentication is off, dashboard is public")
 	}
 }

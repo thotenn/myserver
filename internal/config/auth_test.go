@@ -5,30 +5,24 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 )
 
-// writeAuthFile drops an auth.yaml into a fresh config dir and reloads.
-func writeAuthFile(t *testing.T, content string) string {
+// writeAuthFile drops an auth.yaml into a fresh config dir and returns the
+// dashboard that reads it.
+//
+// A fresh Dashboard per case is also what keeps one test's last-known-good
+// policy out of the next one's: the policy is no longer a package global that
+// has to be reset between cases, it dies with the dashboard.
+func writeAuthFile(t *testing.T, content string) *Dashboard {
 	t.Helper()
 	dir := t.TempDir()
-	SetConfigDir(dir)
-	t.Cleanup(ResetConfigDir)
 	if content != "" {
 		if err := os.WriteFile(filepath.Join(dir, AuthFile), []byte(content), 0o600); err != nil {
 			t.Fatalf("writing %s: %v", AuthFile, err)
 		}
 	}
-	return dir
-}
-
-// resetAuthState clears the published policy between cases so that one test's
-// last-known-good does not leak into the next.
-func resetAuthState(t *testing.T) {
-	t.Helper()
-	authState.Store(AuthState{})
-	t.Cleanup(func() { authState.Store(AuthState{}) })
+	return NewDashboard("", "", dir)
 }
 
 const validAuth = `
@@ -42,32 +36,29 @@ google:
 `
 
 func TestAuth_MissingFileIsPublic(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, "")
-	ReloadAuth()
+	d := writeAuthFile(t, "")
+	d.ReloadAuth()
 
-	state := Auth()
+	state := d.Auth()
 	if state.Required || state.Lockdown {
 		t.Fatalf("no auth.yaml must leave the dashboard public, got %+v", state)
 	}
 }
 
 func TestAuth_EmptyAllowlistIsPublic(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, "allowlist:\n  emails: []\n")
-	ReloadAuth()
+	d := writeAuthFile(t, "allowlist:\n  emails: []\n")
+	d.ReloadAuth()
 
-	if state := Auth(); state.Required || state.Lockdown {
+	if state := d.Auth(); state.Required || state.Lockdown {
 		t.Fatalf("an empty allowlist is an explicit request for a public dashboard, got %+v", state)
 	}
 }
 
 func TestAuth_NonEmptyAllowlistRequiresLogin(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, validAuth)
-	ReloadAuth()
+	d := writeAuthFile(t, validAuth)
+	d.ReloadAuth()
 
-	state := Auth()
+	state := d.Auth()
 	if !state.Required {
 		t.Fatalf("an allowlist with an email must require login, got %+v", state)
 	}
@@ -78,21 +69,20 @@ func TestAuth_NonEmptyAllowlistRequiresLogin(t *testing.T) {
 
 // The core safety property: a typo must never publish the dashboard.
 func TestAuth_BrokenYAMLKeepsLastKnownGood(t *testing.T) {
-	resetAuthState(t)
-	dir := writeAuthFile(t, validAuth)
-	ReloadAuth()
-	if !Auth().Required {
+	d := writeAuthFile(t, validAuth)
+	d.ReloadAuth()
+	if !d.Auth().Required {
 		t.Fatal("precondition: auth should be required")
 	}
 
 	// The operator saves a broken edit.
-	if err := os.WriteFile(filepath.Join(dir, AuthFile),
+	if err := os.WriteFile(filepath.Join(d.Dir, AuthFile),
 		[]byte("allowlist:\n  emails:\n  - person@example.com\n   bad indent: ["), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	ReloadAuth()
+	d.ReloadAuth()
 
-	state := Auth()
+	state := d.Auth()
 	if !state.Required {
 		t.Fatal("a broken auth.yaml opened the dashboard — this is the bug this feature exists to prevent")
 	}
@@ -105,20 +95,19 @@ func TestAuth_BrokenYAMLKeepsLastKnownGood(t *testing.T) {
 }
 
 func TestAuth_DisappearingFileLocksDown(t *testing.T) {
-	resetAuthState(t)
-	dir := writeAuthFile(t, validAuth)
-	ReloadAuth()
-	if !Auth().Required {
+	d := writeAuthFile(t, validAuth)
+	d.ReloadAuth()
+	if !d.Auth().Required {
 		t.Fatal("precondition: auth should be required")
 	}
 
 	// The bind mount dies, or someone deletes the file.
-	if err := os.Remove(filepath.Join(dir, AuthFile)); err != nil {
+	if err := os.Remove(filepath.Join(d.Dir, AuthFile)); err != nil {
 		t.Fatal(err)
 	}
-	ReloadAuth()
+	d.ReloadAuth()
 
-	state := Auth()
+	state := d.Auth()
 	if !state.Lockdown {
 		t.Fatal("a vanished auth.yaml must lock down, never fall back to public")
 	}
@@ -128,37 +117,34 @@ func TestAuth_DisappearingFileLocksDown(t *testing.T) {
 }
 
 func TestAuth_InvalidConfigWithoutPriorPolicyLocksDown(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, "allowlist:\n  emails:\n  - a@example.com\n  bad: [")
-	ReloadAuth()
+	d := writeAuthFile(t, "allowlist:\n  emails:\n  - a@example.com\n  bad: [")
+	d.ReloadAuth()
 
-	if state := Auth(); !state.Lockdown {
+	if state := d.Auth(); !state.Lockdown {
 		t.Fatalf("an unreadable file with no fallback must lock down, got %+v", state)
 	}
 }
 
 func TestAuth_ExplicitEmptyAllowlistTurnsAuthOff(t *testing.T) {
-	resetAuthState(t)
-	dir := writeAuthFile(t, validAuth)
-	ReloadAuth()
-	if !Auth().Required {
+	d := writeAuthFile(t, validAuth)
+	d.ReloadAuth()
+	if !d.Auth().Required {
 		t.Fatal("precondition: auth should be required")
 	}
 
 	// A well-formed file with nobody listed is an unambiguous order.
-	if err := os.WriteFile(filepath.Join(dir, AuthFile), []byte("allowlist:\n  emails: []\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(d.Dir, AuthFile), []byte("allowlist:\n  emails: []\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	ReloadAuth()
+	d.ReloadAuth()
 
-	if state := Auth(); state.Required || state.Lockdown {
+	if state := d.Auth(); state.Required || state.Lockdown {
 		t.Fatalf("clearing the allowlist should reopen the dashboard, got %+v", state)
 	}
 }
 
 func TestAuth_UnresolvedPlaceholderIsRejected(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, `
+	d := writeAuthFile(t, `
 allowlist:
   emails: [person@example.com]
 google:
@@ -166,9 +152,9 @@ google:
   clientSecret: "secret"
   redirectURL: "https://dashboard.example.com/auth/google/callback"
 `)
-	ReloadAuth()
+	d.ReloadAuth()
 
-	state := Auth()
+	state := d.Auth()
 	if !state.Lockdown {
 		t.Fatal("an unset environment variable must not start a half-configured login")
 	}
@@ -178,11 +164,10 @@ google:
 }
 
 func TestAuth_MissingGoogleCredentialsRejected(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, "allowlist:\n  emails: [person@example.com]\n")
-	ReloadAuth()
+	d := writeAuthFile(t, "allowlist:\n  emails: [person@example.com]\n")
+	d.ReloadAuth()
 
-	if state := Auth(); !state.Lockdown || state.Err == nil {
+	if state := d.Auth(); !state.Lockdown || state.Err == nil {
 		t.Fatalf("an allowlist without google credentials cannot work, got %+v", state)
 	}
 }
@@ -260,13 +245,12 @@ func TestValidateAuthConfig_RejectsBadValues(t *testing.T) {
 }
 
 func TestAuth_SessionSecretIsStableAcrossReloads(t *testing.T) {
-	resetAuthState(t)
-	writeAuthFile(t, validAuth)
-	ReloadAuth()
+	d := writeAuthFile(t, validAuth)
+	d.ReloadAuth()
 
-	first := Auth().Config.SessionSecret()
-	ReloadAuth()
-	second := Auth().Config.SessionSecret()
+	first := d.SessionSecret(d.Auth().Config)
+	d.ReloadAuth()
+	second := d.SessionSecret(d.Auth().Config)
 
 	if first != second {
 		t.Error("regenerating the session key on reload would sign everybody out whenever any YAML changes")
@@ -278,7 +262,8 @@ func TestAuth_SessionSecretIsStableAcrossReloads(t *testing.T) {
 
 func TestAuth_ConfigDefaults(t *testing.T) {
 	var cfg *AuthConfig
-	if got := cfg.CookieName(); got != defaultCookieName {
+	root := NewDashboard("", "", t.TempDir())
+	if got := root.CookieName(cfg); got != defaultCookieName {
 		t.Errorf("nil config cookie name = %q", got)
 	}
 	if !cfg.CookieSecure() {
@@ -295,26 +280,24 @@ func TestAuth_ConfigDefaults(t *testing.T) {
 func TestAuth_UninitialisedStateIsClosed(t *testing.T) {
 	// Before the first load nothing is known, and "nothing is known" must not
 	// be read as "there is no auth".
-	authState = atomic.Value{}
-	t.Cleanup(func() { authState.Store(AuthState{}) })
-	if state := Auth(); !state.Lockdown || state.Required {
+	d := NewDashboard("", "", t.TempDir())
+	if state := d.Auth(); !state.Lockdown || state.Required {
 		t.Fatalf("an unloaded policy must not report a public dashboard, got %+v", state)
 	}
 }
 
 func TestAuthFileIsHashed(t *testing.T) {
-	resetAuthState(t)
-	dir := writeAuthFile(t, validAuth)
+	d := writeAuthFile(t, validAuth)
 
-	before, err := configHash()
+	before, err := configHash(d.Dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, AuthFile),
+	if err := os.WriteFile(filepath.Join(d.Dir, AuthFile),
 		[]byte(validAuth+"\n  # touched\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	after, err := configHash()
+	after, err := configHash(d.Dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,9 +309,8 @@ func TestAuthFileIsHashed(t *testing.T) {
 // The gate reads the policy on every request while the watcher rewrites it,
 // so the two must not race. Run with -race.
 func TestAuth_ConcurrentReadsDuringReload(t *testing.T) {
-	resetAuthState(t)
-	dir := writeAuthFile(t, validAuth)
-	ReloadAuth()
+	d := writeAuthFile(t, validAuth)
+	d.ReloadAuth()
 
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
@@ -343,7 +325,7 @@ func TestAuth_ConcurrentReadsDuringReload(t *testing.T) {
 				case <-stop:
 					return
 				default:
-					state := Auth()
+					state := d.Auth()
 					// A published policy must always be self-consistent: any
 					// state that demands a login has a config to enforce.
 					if state.Required && state.Config == nil {
@@ -361,17 +343,17 @@ func TestAuth_ConcurrentReadsDuringReload(t *testing.T) {
 		if i%3 == 0 {
 			body = "allowlist: [" // a broken save
 		}
-		if err := os.WriteFile(filepath.Join(dir, AuthFile), []byte(body), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(d.Dir, AuthFile), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		ReloadAuth()
+		d.ReloadAuth()
 	}
 
 	close(stop)
 	wg.Wait()
 
 	// Every broken save must have been survived without opening up.
-	if state := Auth(); !state.Required {
+	if state := d.Auth(); !state.Required {
 		t.Fatal("after a series of reloads including broken ones, auth must still be required")
 	}
 }

@@ -3,36 +3,40 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/thotenn/myserver/internal/config"
 	mw "github.com/thotenn/myserver/internal/middleware"
 	"github.com/thotenn/myserver/internal/templates"
 )
 
 // Dashboard renders the main dashboard page with server-side templates.
-// It reads the config hash via config.CurrentHash() so hot-reloaded changes
-// are reflected in the cache-busting query param.
+// It reads the config hash of THIS dashboard so hot-reloaded changes are
+// reflected in the cache-busting query param.
 func Dashboard() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		d, ok := dashboardOf(w, r)
+		if !ok {
+			return
+		}
+
 		// Load all config
-		settings, err := config.LoadSettings()
+		settings, err := d.Settings()
 		if err != nil {
 			http.Error(w, "Failed to load settings", http.StatusInternalServerError)
 			return
 		}
 
-		services, err := config.LoadServices()
+		services, err := d.Services()
 		if err != nil {
 			http.Error(w, "Failed to load services", http.StatusInternalServerError)
 			return
 		}
 
-		bookmarks, err := config.LoadBookmarks()
+		bookmarks, err := d.Bookmarks()
 		if err != nil {
 			http.Error(w, "Failed to load bookmarks", http.StatusInternalServerError)
 			return
 		}
 
-		widgets, err := config.LoadWidgets()
+		widgets, err := d.Widgets()
 		if err != nil {
 			http.Error(w, "Failed to load widgets", http.StatusInternalServerError)
 			return
@@ -53,9 +57,9 @@ func Dashboard() http.HandlerFunc {
 			Theme:          theme,
 			Color:          color,
 			Language:       settings.Language,
-			Hash:           config.CurrentHash(),
+			Hash:           d.Hash(),
 			AssetVersion:   AssetVersion(),
-			ScriptsEnabled: config.ScriptsEnabled(),
+			ScriptsEnabled: d.ScriptsEnabled(),
 			AuthEmail:      mw.SessionEmail(r.Context()),
 		}
 

@@ -90,20 +90,20 @@ Located in `$HOMEPAGE_CONFIG_DIR` (default: `/app/config`):
 
 | File | Loader | Used by |
 |------|--------|---------|
-| `settings.yaml` | `config.LoadSettings()` | Dashboard, i18n, theme, scripts config |
-| `services.yaml` | `config.LoadServices()` | Dashboard, `/api/services`, Proxy, Ping, SiteMonitor, Docker stats |
-| `bookmarks.yaml` | `config.LoadBookmarks()` | Dashboard, `/api/bookmarks` |
-| `widgets.yaml` | `config.LoadWidgets()` | Dashboard, `/api/widgets` |
-| `docker.yaml` | `config.LoadDocker()` | DockerStats, DockerStatus handlers |
-| `kubernetes.yaml` | `config.LoadKubernetes()` | KubernetesStats, KubernetesStatus (stub) |
-| `proxmox.yaml` | `config.LoadProxmox()` | ProxmoxStats handler |
-| `scripts.yaml` | `config.LoadScriptsFile()` | ScriptManager registration (no hot-reload yet) |
+| `settings.yaml` | `d.Settings()` | Dashboard, i18n, theme, scripts config |
+| `services.yaml` | `d.Services()` | Dashboard, `/api/services`, Proxy, Ping, SiteMonitor, Docker stats |
+| `bookmarks.yaml` | `d.Bookmarks()` | Dashboard, `/api/bookmarks` |
+| `widgets.yaml` | `d.Widgets()` | Dashboard, `/api/widgets` |
+| `docker.yaml` | `d.Docker()` | DockerStats, DockerStatus handlers |
+| `kubernetes.yaml` | `d.Kubernetes()` | KubernetesStats, KubernetesStatus (stub) |
+| `proxmox.yaml` | `d.Proxmox()` | ProxmoxStats handler |
+| `scripts.yaml` | `d.ScriptsFile()` | ScriptManager registration (no hot-reload yet) |
 | `custom.css` | — | Injected into the `<head>` of the dashboard |
 | `custom.js` | — | Injected before the closing `</body>` |
 
 ### Env Var Substitution
 
-`config.ReadConfigFile()` applies `SubstituteEnvVars()` which replaces:
+`config.SubstituteEnvVars()`, applied to every file as it is read, replaces:
 - `{{HOMEPAGE_VAR_XXX}}` → value of env var `HOMEPAGE_VAR_XXX`
 - `{{HOMEPAGE_FILE_XXX}}` → contents of the file pointed to by `HOMEPAGE_FILE_XXX`
 
@@ -111,12 +111,12 @@ If a reference cannot be resolved, the placeholder is kept literally (fail-visib
 
 ### Hot-Reload
 
-1. `main.go` computes `ConfigHash()` at startup and stores it in `atomic.Value` via `SetCurrentHash()`.
+1. `main.go` builds the dashboard registry at startup and calls `Reload()` on each dashboard, which computes that dashboard's config hash and stores it in the snapshot it swaps in atomically.
 2. An `fsnotify.Watcher` is started over the config directory.
 3. Every change to `.yaml`, `.yml`, `.css`, `.js` triggers `onChange()` which recalculates the hash.
 4. The frontend (in `app.js`) polls `/api/hash` every 10s; if it changes, it performs `window.location.reload()`.
 
-**IMPORTANT:** handlers MUST use `config.CurrentHash()` (which reads the `atomic.Value`), NOT capture the hash in a closure at startup.
+**IMPORTANT:** handlers MUST read the hash per request, from the dashboard on the request context (`config.DashboardFrom(ctx).Hash()`), NOT capture it in a closure at startup. There is no process-wide config hash: each dashboard has its own, so a change to one does not tell every other dashboard's browser to reload.
 
 ---
 

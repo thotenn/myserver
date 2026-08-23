@@ -246,3 +246,74 @@ HTTPS. For local testing set `session.secure: false`; never in production.
 HTMX requests are answered with `401` + `HX-Redirect`, never login HTML, so
 this means the request reached the gate without the `HX-Request: true` header —
 check any custom JavaScript that issues it.
+
+---
+
+## Several dashboards
+
+### A dashboard URL answers 404
+
+Either there is no directory of that name under `<config dir>/dashboards/`, or
+the name was refused. Names are one path segment of `A-Za-z0-9._~-`, and `api`,
+`auth` and `static` are reserved because they would shadow the root dashboard's
+own routes. A refused directory says so at startup:
+
+```
+{"msg":"ignoring a dashboard directory","error":"dashboard slug \"api\" is reserved: it would shadow the /api routes"}
+```
+
+The startup log also lists what IS being served — `serving a client dashboard`,
+one line each — so compare that against the directories on disk.
+
+### A nested dashboard's URL serves the ROOT dashboard's content
+
+The reverse proxy is rewriting the path. The first segment after any base path
+is how MyServer decides which dashboard you asked for, so a rule that strips
+`/acme` leaves a request that looks like the root dashboard's. Pass the path
+through unchanged: no `strip_prefix`, no `rewrite ^/acme(.*) $1`, no
+`StripPrefix` middleware.
+
+### A card on a nested dashboard renders empty
+
+Nested dashboards are read-only, and the endpoints behind those cards are not
+registered for them: `/api/services/proxy` (any `widget:` that needs a
+credential), `/api/widgets/resources`, `/api/docker/*`, `/api/proxmox/*`,
+`/api/scripts/*`. They answer 404 and the frontend leaves the card empty. Links,
+descriptions and the `ping:` / `siteMonitor:` status indicators are what a nested
+dashboard supports; anything needing a credential belongs in the root dashboard.
+
+### One dashboard answers 503 everywhere, the others are fine
+
+That dashboard's `auth.yaml` cannot be read, or vanished while sign-in was
+active. Failing closed is deliberate — a vanished policy is indistinguishable
+from a deleted gate — and it is confined to that dashboard so the rest of the
+host keeps serving. The log names it. See
+[`authentication.md`](./authentication.md).
+
+If the **whole** process refuses to start instead, it is the ROOT dashboard's
+policy: that one is fatal at startup.
+
+### A new dashboard directory is not picked up
+
+The watcher notices directories created under `<config dir>/dashboards/` and
+logs `dashboard added`. If that line never appears, the directory was created
+somewhere else — check that it is directly under `dashboards/`, not nested
+deeper — or the name was refused (see above). Restarting the process re-scans
+from scratch and will log the reason either way.
+
+### Signing in to one dashboard signs me out of another
+
+It should not, and does not: each dashboard's session cookie has its own name
+(`myserver_session`, `myserver_session_acme`), its own `Path` and its own signing
+key. If it happens, look for a `session.cookieName` in one dashboard's
+`auth.yaml` that collides with another's — an explicit name overrides the
+per-dashboard default that exists to prevent exactly this.
+
+### `redirect_uri_mismatch` after adding a dashboard
+
+`google.redirectURL` in that dashboard's `auth.yaml` does not match an
+authorised redirect URI in the Google console. Nested dashboards normally point
+at the **root** dashboard's callback, which is already registered — the dashboard
+the login belongs to travels inside the signed OAuth state, so no new URI is
+needed. Only point it at `/<name>/auth/google/callback` if that dashboard has its
+own OAuth client, and register that URI too.

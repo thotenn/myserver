@@ -288,10 +288,62 @@ scripts:
 
 ---
 
+## Serving several dashboards
+
+One MyServer serves the dashboard in `HOMEPAGE_CONFIG_DIR` at the root of its
+host, **plus one dashboard per sub-directory of `<config dir>/dashboards/`**,
+served at `/<name of the directory>`:
+
+```
+config/                    → https://dashboard.example.com/
+  services.yaml
+  settings.yaml
+  dashboards/
+    team/                  → https://dashboard.example.com/team
+      services.yaml
+      settings.yaml
+      auth.yaml            optional; absent means that dashboard is public
+    partners/              → https://dashboard.example.com/partners
+      services.yaml
+```
+
+Creating the directory is all there is to it: a running MyServer notices it and
+starts serving that prefix without a restart, and deleting it stops. Nothing
+else changes — same process, same port, same certificate, same reverse-proxy
+rule.
+
+Each dashboard reads only its own directory, has its own config hash (so editing
+one does not reload another's browser), its own `auth.yaml`, and its own session
+cookie. A dashboard with no `auth.yaml` is public, and MyServer says so at
+startup.
+
+Directory names are limited to `A-Z a-z 0-9 . _ ~ -`, one path segment, and
+`api`, `auth` and `static` are reserved — they would shadow the root dashboard's
+own routes. A directory that breaks either rule is logged and skipped.
+
+### What a nested dashboard can do
+
+A nested dashboard is **read-only**, by construction rather than by policy: the
+routes for everything else are not registered for it. It serves its page, its
+static assets, its own `/api/{services,bookmarks,widgets,hash,config/{path},
+ping,siteMonitor,healthcheck}`, and its own login. It does **not** have the
+widget proxy (`/api/services/proxy`), the scripts endpoints, the Docker or
+Proxmox endpoints, the info-widget data endpoints (`/api/widgets/resources`
+reports the host's own CPU and memory), `/api/reload` or `/api/validate`. Those
+answer `404`.
+
+So a nested dashboard is links, descriptions, and the `ping:` / `siteMonitor:`
+status indicators — which resolve against that dashboard's own services and
+refuse a host it does not list. Widgets that need credentials belong in the root
+dashboard.
+
+Docker discovery is merged into the root dashboard's services only.
+
 ## Serving under a base path
 
-By default the dashboard owns the root of its host. `HOMEPAGE_BASE_PATH` moves
-it under a prefix instead, so one host can carry it alongside other things:
+By default the root dashboard owns the root of its host. `HOMEPAGE_BASE_PATH`
+moves **everything** under a prefix instead, so one host can carry it alongside
+other things:
 
 ```yaml
 environment:
@@ -308,6 +360,7 @@ What changes:
 | | Without a base path | With `HOMEPAGE_BASE_PATH=/team` |
 |---|---|---|
 | Dashboard | `https://dashboard.example.com/` | `https://dashboard.example.com/team` |
+| A nested dashboard | `/partners` | `/team/partners` |
 | API | `/api/services` | `/team/api/services` |
 | Healthcheck | `/api/healthcheck` | `/team/api/healthcheck` |
 | Session cookie `Path` | `/` | `/team` |
@@ -315,16 +368,18 @@ What changes:
 
 Two consequences worth planning for:
 
-- **The reverse proxy must NOT strip the prefix.** The instance expects to
-  receive `/team/…` and answers `404` for anything outside it. Point the proxy
-  at the container with the path intact (no `strip_prefix`, no
+- **The reverse proxy must NOT strip the path.** MyServer expects to receive
+  `/team/…` and answers `404` for anything outside it — and the first segment
+  after the prefix is how it tells nested dashboards apart. Point the proxy at
+  the container with the path intact (no `strip_prefix`, no
   `rewrite ^/team(.*) $1`).
 - **Update the container healthcheck** to the prefixed path; the unprefixed one
   now 404s.
 
-Leaving the variable unset is not a special case that is merely supported — it
-is the same code path the dashboard had before the option existed, byte for
-byte, down to cookie names and redirect targets.
+Leaving the variable unset, with no `dashboards/` directory, is not a special
+case that is merely supported — it is the same code path the dashboard had
+before either option existed, byte for byte, down to cookie names, headers and
+redirect targets.
 
 ---
 

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,10 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// issueTestSession mints a session with the prefix of the given context, which
-// is what decides the cookie's Path.
-func issueTestSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig) error {
-	return auth.IssueSession(ctx, w, cfg, "person@example.com")
+// issueTestSession mints a session for a dashboard, which is what decides the
+// cookie's name and Path.
+func issueTestSession(w http.ResponseWriter, d *config.Dashboard, cfg *config.AuthConfig) error {
+	return auth.IssueSession(w, d, cfg, "person@example.com")
 }
 
 const basePathTestServices = `
@@ -34,21 +33,16 @@ const basePathTestServices = `
 // API() reads it once, at construction.
 func newBasePathRouter(t *testing.T, prefix string, withAuth bool) http.Handler {
 	t.Helper()
+	// The prefix is memoised in config and read once, when the registry is
+	// built — hence setting it before withTempConfig publishes one.
+	t.Setenv("HOMEPAGE_BASE_PATH", prefix)
+	config.ResetBasePath()
+
 	files := map[string]string{"services.yaml": basePathTestServices}
 	if withAuth {
 		files[config.AuthFile] = testAuthYAML
 	}
 	withTempConfig(t, files)
-	t.Setenv("HOMEPAGE_BASE_PATH", prefix)
-	config.ResetBasePath()
-	config.ResetAuthState()
-	config.ReloadCache()
-	t.Cleanup(func() {
-		config.ResetBasePath()
-		config.ResetAuthState()
-		config.ResetCache()
-		config.SetCurrentHash("")
-	})
 	return API(zap.NewNop(), 3000)
 }
 
@@ -178,19 +172,20 @@ func TestBasePath_LoginCSSStaysReachable(t *testing.T) {
 
 func TestBasePath_SessionCookieIsScopedToTheDashboard(t *testing.T) {
 	newBasePathRouter(t, "/team", true)
-	cfg := config.Auth().Config
+	prefixed := rootDashboard(t)
+	cfg := prefixed.Auth().Config
 	require.NotNil(t, cfg)
 
 	rec := httptest.NewRecorder()
-	ctx := config.WithBasePath(context.Background(), "/team")
-	require.NoError(t, issueTestSession(ctx, rec, cfg))
+	require.NoError(t, issueTestSession(rec, prefixed, cfg))
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
 	assert.Equal(t, "/team", cookies[0].Path,
 		"a cookie with Path=/ would be sent to every other dashboard on the host")
 
 	rec = httptest.NewRecorder()
-	require.NoError(t, issueTestSession(context.Background(), rec, cfg))
+	unprefixed := config.NewDashboard("", "", prefixed.Dir)
+	require.NoError(t, issueTestSession(rec, unprefixed, cfg))
 	assert.Equal(t, "/", rec.Result().Cookies()[0].Path,
 		"at the root the cookie path must stay exactly what it was")
 }

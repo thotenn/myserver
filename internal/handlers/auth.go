@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -41,6 +40,13 @@ import (
 // therefore separated by the cookie NAME instead: the base path is appended,
 // so a login in progress under one prefix cannot overwrite the state of a
 // login under another. With no base path the name is unchanged.
+//
+// The name is a bucket, not an identity. What the callback trusts is the
+// SIGNED payload inside, which names the dashboard the login belongs to — see
+// oauthState and internal/auth/state.go. A shared callback receives every
+// Path=/ cookie the browser holds and has to pick the flow it is completing
+// out of them, which it does by matching the state; the name only keeps two
+// concurrent logins from overwriting each other.
 const (
 	oauthStateCookieSecure = "__Host-myserver_oauth"
 	oauthStateCookiePlain  = "myserver_oauth"
@@ -55,22 +61,33 @@ func redirect(w http.ResponseWriter, r *http.Request, path string) {
 	http.Redirect(w, r, config.PrefixPathFrom(r.Context(), path), http.StatusFound)
 }
 
+// redirectTo is redirect for a dashboard that is NOT the one serving the
+// request. Only the shared OAuth callback needs it: it runs on the root
+// dashboard's route while completing a login that belongs to a client's.
+func redirectTo(w http.ResponseWriter, r *http.Request, d *config.Dashboard, path string) {
+	http.Redirect(w, r, d.PrefixPath(path), http.StatusFound)
+}
+
 // AuthLogin renders the login page.
 func AuthLogin(logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		state := config.Auth()
+		d, ok := dashboardOf(w, r)
+		if !ok {
+			return
+		}
+		state := d.Auth()
 		if !state.Required {
 			http.NotFound(w, r)
 			return
 		}
 		// Already signed in and still allowed? Nothing to do here.
-		if session, err := auth.ReadSession(r, state.Config); err == nil &&
+		if session, err := auth.ReadSession(r, d, state.Config); err == nil &&
 			auth.IsAllowed(state.Config, session.Email) {
 			redirect(w, r, "/")
 			return
 		}
 
-		data := authPageData(state.Config)
+		data := authPageData(d)
 		data.StartURL = config.PrefixPathFrom(r.Context(), "/auth/google/start") +
 			nextQuery(safeNext(r.URL.Query().Get("next")))
 		data.Error = errorKey(r.URL.Query().Get("error"))
@@ -82,12 +99,16 @@ func AuthLogin(logger *zap.Logger) http.HandlerFunc {
 // AuthDenied renders the "your address is not listed" page.
 func AuthDenied(logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		state := config.Auth()
+		d, ok := dashboardOf(w, r)
+		if !ok {
+			return
+		}
+		state := d.Auth()
 		if !state.Required {
 			http.NotFound(w, r)
 			return
 		}
-		data := authPageData(state.Config)
+		data := authPageData(d)
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusForbidden)
 		respondHTML(w, r, templates.DeniedPage(data))
@@ -97,7 +118,11 @@ func AuthDenied(logger *zap.Logger) http.HandlerFunc {
 // AuthGoogleStart redirects to Google with a fresh state and nonce.
 func AuthGoogleStart(logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		state := config.Auth()
+		d, ok := dashboardOf(w, r)
+		if !ok {
+			return
+		}
+		state := d.Auth()
 		if !state.Required || state.Config.ProviderName() != config.ProviderGoogle {
 			http.NotFound(w, r)
 			return
@@ -117,7 +142,7 @@ func AuthGoogleStart(logger *zap.Logger) http.HandlerFunc {
 		}
 
 		next := safeNext(r.URL.Query().Get("next"))
-		setOAuthStateCookie(r.Context(), w, state.Config, oauthState, nonce, next)
+		setOAuthStateCookie(w, d, state.Config, oauthState, nonce, next)
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, auth.AuthorizationURL(state.Config, oauthState, nonce), http.StatusFound)
 	}
@@ -126,40 +151,84 @@ func AuthGoogleStart(logger *zap.Logger) http.HandlerFunc {
 // AuthGoogleCallback completes the login.
 func AuthGoogleCallback(logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		state := config.Auth()
-		if !state.Required || state.Config.ProviderName() != config.ProviderGoogle {
-			http.NotFound(w, r)
+		here, ok := dashboardOf(w, r)
+		if !ok {
 			return
 		}
-		cfg := state.Config
-		w.Header().Set("Cache-Control", "no-store")
+		// Cache-Control is set per branch rather than up front: the 404 this
+		// route returns when no login exists has to stay byte for byte the 404
+		// chi returns for an unknown route.
+		noStore := func() { w.Header().Set("Cache-Control", "no-store") }
 
-		stored, ok := readOAuthStateCookie(r, cfg)
-		clearOAuthStateCookie(r.Context(), w, cfg)
-		if !ok {
-			logger.Warn("oauth callback without a valid state cookie",
+		// One callback completes logins for every dashboard that points its
+		// redirectURL at it, which is what removes the per-client entry in the
+		// identity provider's console — the operational cost this whole
+		// feature exists to delete.
+		//
+		// So the dashboard being completed is NOT the one serving this
+		// request: it is named in the signed state, and it is found by
+		// matching the state value against the cookies the browser sent.
+		stored, cookieName, inFlight := matchOAuthStateCookie(r)
+		if stored == nil {
+			if inFlight > 0 {
+				// A login IS in progress, but the state Google echoed back is
+				// not the one that started it. That is CSRF on the login flow,
+				// and it is answered the same way it was before there were
+				// several dashboards.
+				noStore()
+				clearOAuthStateCookieNamed(w, cookieName, here.Auth().Config)
+				logger.Warn("oauth state mismatch", zap.String("ip", mw.ClientIPFromRequest(r)))
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			// Nothing in flight. With no login configured on the dashboard
+			// serving this route, the route does not exist — which is what
+			// keeps an auth-less deployment byte-for-byte what it was.
+			hereState := here.Auth()
+			if !hereState.Required || hereState.Config.ProviderName() != config.ProviderGoogle {
+				http.NotFound(w, r)
+				return
+			}
+			noStore()
+			clearOAuthStateCookie(w, here, hereState.Config)
+			logger.Warn("oauth callback without a matching state cookie",
 				zap.String("ip", mw.ClientIPFromRequest(r)))
 			redirect(w, r, "/auth/login?error=expired")
 			return
 		}
 
-		// Constant-time: the state is a secret shared between the cookie and
-		// the redirect, and comparing it byte-wise would leak it.
-		got := r.URL.Query().Get("state")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(stored.State)) != 1 {
-			logger.Warn("oauth state mismatch", zap.String("ip", mw.ClientIPFromRequest(r)))
-			http.Error(w, "Forbidden", http.StatusForbidden)
+		// The slug is read from the signed payload and never from the query.
+		// It decides which allowlist the login is checked against, so a caller
+		// able to choose it would be choosing the policy that judges them.
+		d := config.Dashboards().Client(stored.Dashboard)
+		if stored.Dashboard == "" {
+			d = config.Dashboards().Root()
+		}
+		if d == nil {
+			noStore()
+			clearOAuthStateCookieNamed(w, cookieName, here.Auth().Config)
+			logger.Warn("oauth callback for a dashboard that no longer exists",
+				zap.String("dashboard", stored.Dashboard))
+			redirect(w, r, "/auth/login?error=failed")
 			return
 		}
+		state := d.Auth()
+		if !state.Required || state.Config.ProviderName() != config.ProviderGoogle {
+			http.NotFound(w, r)
+			return
+		}
+		noStore()
+		clearOAuthStateCookieNamed(w, cookieName, state.Config)
+		cfg := state.Config
 
 		if errParam := r.URL.Query().Get("error"); errParam != "" {
 			logger.Warn("oauth provider returned an error", zap.String("error", errParam))
-			redirect(w, r, "/auth/login?error=failed")
+			redirectTo(w, r, d, "/auth/login?error=failed")
 			return
 		}
 		code := r.URL.Query().Get("code")
 		if code == "" {
-			redirect(w, r, "/auth/login?error=failed")
+			redirectTo(w, r, d, "/auth/login?error=failed")
 			return
 		}
 
@@ -179,36 +248,41 @@ func AuthGoogleCallback(logger *zap.Logger) http.HandlerFunc {
 				zap.String("ip", mw.ClientIPFromRequest(r)))
 			// No cookie is issued: authenticating with Google proves who you
 			// are, not that you are welcome.
-			redirect(w, r, "/auth/denied")
+			redirectTo(w, r, d, "/auth/denied")
 			return
 		}
 
-		if err := auth.IssueSession(r.Context(), w, cfg, email); err != nil {
+		if err := auth.IssueSession(w, d, cfg, email); err != nil {
 			logger.Error("failed to issue session", zap.Error(err))
-			redirect(w, r, "/auth/login?error=failed")
+			redirectTo(w, r, d, "/auth/login?error=failed")
 			return
 		}
 		logger.Info("login succeeded",
 			zap.String("email", email),
+			zap.String("dashboard", d.String()),
 			zap.String("ip", mw.ClientIPFromRequest(r)))
 
 		// Re-validate the destination at the point of use, not only when it
-		// was stored. safeNext keeps it dashboard-relative; redirect() puts it
-		// back under this dashboard's prefix, which is what makes a stored
-		// destination unable to escape to another dashboard.
-		redirect(w, r, safeNext(stored.Next))
+		// was stored. safeNext keeps it dashboard-relative; redirectTo puts it
+		// back under the prefix of the dashboard that was signed into, which is
+		// what makes a stored destination unable to escape to another one.
+		redirectTo(w, r, d, safeNext(stored.Next))
 	}
 }
 
 // AuthLogout clears the session.
 func AuthLogout(logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		state := config.Auth()
+		d, ok := dashboardOf(w, r)
+		if !ok {
+			return
+		}
+		state := d.Auth()
 		if !state.Required {
 			http.NotFound(w, r)
 			return
 		}
-		auth.ClearSession(r.Context(), w, state.Config)
+		auth.ClearSession(w, d, state.Config)
 		w.Header().Set("Cache-Control", "no-store")
 		if r.Header.Get("HX-Request") == "true" {
 			w.Header().Set("HX-Redirect", config.PrefixPathFrom(r.Context(), "/auth/login"))
@@ -220,19 +294,28 @@ func AuthLogout(logger *zap.Logger) http.HandlerFunc {
 }
 
 // oauthState is the short-lived state kept in the cookie during the redirect
-// to Google and back.
+// to Google and back. It travels signed (internal/auth/state.go).
 type oauthState struct {
 	State string `json:"s"`
 	Nonce string `json:"n"`
 	Next  string `json:"x"`
+	// Dashboard is the slug of the dashboard this login belongs to, "" for the
+	// root one. It is the field the shared callback exists for, and the reason
+	// the payload is signed: it selects the allowlist the login is judged by.
+	Dashboard string `json:"d,omitempty"`
 }
 
-func oauthCookieName(ctx context.Context, cfg *config.AuthConfig) string {
-	name := oauthStateCookiePlain
+func oauthCookieName(d *config.Dashboard, cfg *config.AuthConfig) string {
+	return oauthCookieBase(cfg) + oauthCookieSuffix(d.Prefix)
+}
+
+// oauthCookieBase is the name without the per-dashboard suffix, and the prefix
+// the callback scans the request's cookies for.
+func oauthCookieBase(cfg *config.AuthConfig) string {
 	if cfg.CookieSecure() {
-		name = oauthStateCookieSecure
+		return oauthStateCookieSecure
 	}
-	return name + oauthCookieSuffix(config.BasePathFrom(ctx))
+	return oauthStateCookiePlain
 }
 
 // oauthCookieSuffix turns a base path into a cookie-name suffix. The prefix
@@ -245,14 +328,16 @@ func oauthCookieSuffix(prefix string) string {
 	return "_" + strings.ReplaceAll(strings.Trim(prefix, "/"), "/", "_")
 }
 
-func setOAuthStateCookie(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig, state, nonce, next string) {
-	payload, err := json.Marshal(oauthState{State: state, Nonce: nonce, Next: next})
+func setOAuthStateCookie(w http.ResponseWriter, d *config.Dashboard, cfg *config.AuthConfig, state, nonce, next string) {
+	payload, err := json.Marshal(oauthState{
+		State: state, Nonce: nonce, Next: next, Dashboard: d.Slug,
+	})
 	if err != nil {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     oauthCookieName(ctx, cfg),
-		Value:    base64.RawURLEncoding.EncodeToString(payload),
+		Name:     oauthCookieName(d, cfg),
+		Value:    auth.SealState(payload),
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   cfg.CookieSecure(),
@@ -261,25 +346,51 @@ func setOAuthStateCookie(ctx context.Context, w http.ResponseWriter, cfg *config
 	})
 }
 
-func readOAuthStateCookie(r *http.Request, cfg *config.AuthConfig) (*oauthState, bool) {
-	c, err := r.Cookie(oauthCookieName(r.Context(), cfg))
-	if err != nil || c.Value == "" {
-		return nil, false
+// matchOAuthStateCookie finds the in-flight login this callback is completing.
+// It returns the matching state and its cookie name, plus how many valid
+// in-flight logins the request carried — which is what tells "the state does
+// not match" (CSRF) apart from "there was no login to complete" (expired).
+//
+// A shared callback cannot ask for a cookie by name: it does not yet know
+// which dashboard the flow belongs to, and that is precisely what the cookie
+// is carrying. So it looks at every OAuth state cookie the browser sent (they
+// are all Path=/), keeps the ones whose signature verifies, and picks the one
+// whose state matches the one the provider echoed back. The comparison is
+// constant-time: the state is a secret shared between the cookie and the
+// redirect, and comparing it byte-wise would leak it.
+func matchOAuthStateCookie(r *http.Request) (*oauthState, string, int) {
+	want := r.URL.Query().Get("state")
+	inFlight := 0
+	lastName := ""
+	for _, c := range r.Cookies() {
+		if !strings.HasPrefix(c.Name, oauthStateCookieSecure) &&
+			!strings.HasPrefix(c.Name, oauthStateCookiePlain) {
+			continue
+		}
+		raw, ok := auth.OpenState(c.Value)
+		if !ok {
+			continue
+		}
+		var s oauthState
+		if err := json.Unmarshal(raw, &s); err != nil || s.State == "" || s.Nonce == "" {
+			continue
+		}
+		inFlight++
+		lastName = c.Name
+		if want != "" && subtle.ConstantTimeCompare([]byte(want), []byte(s.State)) == 1 {
+			return &s, c.Name, inFlight
+		}
 	}
-	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
-	if err != nil {
-		return nil, false
-	}
-	var s oauthState
-	if err := json.Unmarshal(raw, &s); err != nil || s.State == "" || s.Nonce == "" {
-		return nil, false
-	}
-	return &s, true
+	return nil, lastName, inFlight
 }
 
-func clearOAuthStateCookie(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig) {
+func clearOAuthStateCookie(w http.ResponseWriter, d *config.Dashboard, cfg *config.AuthConfig) {
+	clearOAuthStateCookieNamed(w, oauthCookieName(d, cfg), cfg)
+}
+
+func clearOAuthStateCookieNamed(w http.ResponseWriter, name string, cfg *config.AuthConfig) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     oauthCookieName(ctx, cfg),
+		Name:     name,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
@@ -336,7 +447,7 @@ func errorKey(param string) string {
 
 // authPageData assembles what the auth pages render, taking the dashboard
 // title and language from settings when they are readable.
-func authPageData(cfg *config.AuthConfig) templates.AuthPageData {
+func authPageData(d *config.Dashboard) templates.AuthPageData {
 	data := templates.AuthPageData{
 		Title:        "MyServer",
 		Language:     "en",
@@ -344,7 +455,7 @@ func authPageData(cfg *config.AuthConfig) templates.AuthPageData {
 		Color:        "slate",
 		AssetVersion: AssetVersion(),
 	}
-	if settings, err := config.LoadSettings(); err == nil && settings != nil {
+	if settings, err := d.Settings(); err == nil && settings != nil {
 		if settings.Title != "" {
 			data.Title = settings.Title
 		}

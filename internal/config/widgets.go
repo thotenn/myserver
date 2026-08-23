@@ -13,22 +13,8 @@ type InfoWidget struct {
 	Options map[string]interface{} `yaml:",inline" json:"options"`
 }
 
-// LoadWidgets loads and parses widgets.yaml.
-
-// LoadWidgets returns the cached config if available, otherwise loads from disk.
-func LoadWidgets() ([]InfoWidget, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Widgets, nil
-	}
-	return loadWidgets()
-}
-func loadWidgets() ([]InfoWidget, error) {
-	if err := CheckAndCopyConfig("widgets.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("widgets.yaml")
+func loadWidgets(dir string) ([]InfoWidget, error) {
+	data, err := readConfigFile(dir, "widgets.yaml")
 	if err != nil {
 		return nil, err
 	}

@@ -13,22 +13,32 @@ import (
 
 // API sets up all routes and returns an http.Handler.
 // Pass the listening port so that HostValidation can build localhost defaults.
+//
+// Two routers come out of it, and which one a request reaches is decided by
+// mw.Dispatch from the URL:
+//
+//   - the ROOT router, the full application, for the dashboard served from the
+//     config directory itself;
+//   - the CLIENT router, a strict subset, for every dashboard under
+//     config/dashboards/.
+//
+// The subset is the security boundary, and it is expressed by NOT REGISTERING
+// the rest rather than by checking inside the handlers. A client dashboard has
+// no widget proxy (it forwards credentials from a config file), no scripts
+// (they run shell on the host), no container or hypervisor endpoints (they
+// describe the host), and nothing that mutates. Those routes do not 403 for a
+// client — they do not exist, which is the only kind of check that cannot be
+// got wrong later by someone adding a handler.
 func API(logger *zap.Logger, port int) http.Handler {
-	r := chi.NewRouter()
-	setupMiddleware(r, logger)
-	setupRoutes(r, logger, port)
+	root := chi.NewRouter()
+	setupMiddleware(root, logger)
+	setupRoutes(root, logger, port)
 
-	// A base path is served by stripping the prefix in front of everything
-	// else, so the router below matches the same patterns either way. With no
-	// prefix configured the handler is returned untouched: a deployment that
-	// does not use the feature runs exactly the code it ran before it existed.
-	//
-	// This and cmd/myserver are the only callers of config.BasePath(); every
-	// other place reads the prefix from the request context.
-	if prefix := config.BasePath(); prefix != "" {
-		return mw.BasePath(prefix)(r)
-	}
-	return r
+	client := chi.NewRouter()
+	setupMiddleware(client, logger)
+	setupClientRoutes(client, logger, port)
+
+	return mw.Dispatch(root, client)
 }
 
 // setupMiddleware attaches global and group-level middleware.
@@ -122,6 +132,55 @@ func setupRoutes(r chi.Router, logger *zap.Logger, port int) {
 			r.With(rateLimit(1, 2)).Post("/scripts/{name}", RunScript)
 			r.With(rateLimit(1, 2)).Post("/scripts/{name}/stream", StreamScript)
 		}
+	})
+}
+
+// setupClientRoutes registers the read-only surface a client dashboard is
+// served through: the page, its assets, its own config-driven data, the
+// monitoring probes for its own services, and the login flow.
+//
+// Everything absent from this list is absent on purpose. Compare it with
+// setupRoutes before adding anything: /api/services/proxy calls upstreams with
+// the credentials in a config file, /api/scripts/* runs shell commands on the
+// host, /api/docker/* and /api/proxmox/* describe the host, and /api/reload
+// and /api/validate are operator tools. None of that belongs to a third party
+// looking at a list of their own links.
+func setupClientRoutes(r chi.Router, logger *zap.Logger, port int) {
+	fs := http.StripPrefix("/static/", http.FileServer(http.Dir("web/static")))
+	r.Handle("/static/*", cacheControl(fs, "public, max-age=86400"))
+
+	r.Get("/", Dashboard())
+
+	// Registered unconditionally, exactly as on the root router, so that
+	// filling in a client's auth.yaml arms its login without a restart.
+	r.Route("/auth", func(r chi.Router) {
+		r.Get("/login", AuthLogin(logger))
+		r.Get("/denied", AuthDenied(logger))
+		r.With(rateLimit(1, 3)).Get("/google/start", AuthGoogleStart(logger))
+		// A client normally points its redirectURL at the root dashboard's
+		// callback — that shared callback is what keeps the identity provider
+		// to a single registered URL. Its own is registered anyway, for the
+		// client that declares its own OAuth application.
+		r.With(rateLimit(1, 3)).Get("/google/callback", AuthGoogleCallback(logger))
+		r.Post("/logout", AuthLogout(logger))
+	})
+
+	r.Route("/api", func(r chi.Router) {
+		r.Use(mw.CORS)
+		r.Use(mw.HostValidation(port, logger))
+
+		r.With(rateLimit(1, 1)).Get("/hash", Hash)
+		r.Get("/healthcheck", HealthCheck)
+		r.Get("/services", Services)
+		r.Get("/bookmarks", Bookmarks)
+		r.Get("/widgets", Widgets)
+		r.Get("/config/{path}", ConfigFile)
+
+		// The status dot. Both resolve against THIS dashboard's services and
+		// carry no widget credentials, which is what makes them the only two
+		// outbound calls a client dashboard can cause.
+		r.With(rateLimit(5, 8)).Get("/ping", Ping)
+		r.With(rateLimit(5, 8)).Get("/siteMonitor", SiteMonitor)
 	})
 }
 

@@ -264,7 +264,10 @@ func getDockerClient(server string) (*client.Client, error) {
 		return cli, nil
 	}
 
-	dockerConfigs, err := config.LoadDocker()
+	// The root dashboard's, explicitly: the docker client pool talks to the
+	// host's daemon and none of the /api/docker routes is registered for a
+	// client dashboard, so there is no per-request dashboard to read here.
+	dockerConfigs, err := config.Dashboards().Root().Docker()
 	if err != nil {
 		return nil, fmt.Errorf("loading docker config: %w", err)
 	}

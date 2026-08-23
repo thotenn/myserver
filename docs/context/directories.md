@@ -23,21 +23,26 @@ myserver/                              # repository root
 │   │   │   ├── services.yaml
 │   │   │   ├── settings.yaml
 │   │   │   └── widgets.yaml
-│   │   ├── bookmarks.go             # Bookmark, BookmarkGroup, LoadBookmarks()
-│   │   ├── config.go                # ConfigDir, ConfigHash, CurrentHash/SetCurrentHash, EnsureConfigDir, CheckAndCopyConfig, ReadConfigFile
+│   │   ├── auth.go                  # AuthConfig, AuthState, reconcileAuth, ValidateAuthConfig
+│   │   ├── basepath.go              # ParseBasePath, BasePath (env, memoised), PrefixPath, ctx accessors
+│   │   ├── bookmarks.go             # Bookmark, BookmarkGroup, d.Bookmarks()
+│   │   ├── cache.go                 # cachedConfig — ONE dashboard's parsed snapshot
+│   │   ├── config.go                # ConfigDir (the ROOT one), EnsureConfigDir, EnsureSkeleton, per-directory read + hash
 │   │   ├── config_test.go           # Config tests
-│   │   ├── docker.go                # DockerConfig, TLSConfig, LoadDocker()
+│   │   ├── dashboard.go             # Dashboard: dir, prefix, snapshot, auth policy, cookie name, signing key
+│   │   ├── dashboards.go            # DashboardSet + registry: scan config/dashboards/, resolve a URL to a dashboard
+│   │   ├── docker.go                # DockerConfig, TLSConfig, d.Docker()
 │   │   ├── env.go                   # SubstituteEnvVars, RawAllowedHosts, AllowedHosts, ProxyDisableIPv6, ScriptsEnabled, AllowPrivateHosts
 │   │   ├── env_test.go              # Env substitution tests
-│   │   ├── kubernetes.go            # KubernetesConfig, LoadKubernetes()
-│   │   ├── proxmox.go             # ProxmoxConfig, LoadProxmox()
-│   │   ├── scripts.go             # ScriptsFile, ScriptEntry, LoadScriptsFile()
-│   │   ├── services.go            # Service, ServiceGroup, WidgetConfig, LoadServices(), SanitizeService()
+│   │   ├── kubernetes.go            # KubernetesConfig, d.Kubernetes()
+│   │   ├── proxmox.go             # ProxmoxConfig, d.Proxmox()
+│   │   ├── scripts.go             # ScriptsFile, ScriptEntry, d.ScriptsFile()
+│   │   ├── services.go            # Service, ServiceGroup, WidgetConfig, d.Services(), SanitizeService()
 │   │   ├── services_test.go       # Services tests
-│   │   ├── settings.go            # Settings, LayoutGroup, QuickLaunch, ScriptSettings, LoadSettings()
+│   │   ├── settings.go            # Settings, LayoutGroup, QuickLaunch, ScriptSettings, d.Settings()
 │   │   ├── settings_test.go       # Settings tests
-│   │   ├── watcher.go             # Watcher (fsnotify), Start/Stop/eventLoop
-│   │   └── widgets.go             # InfoWidget, LoadWidgets(), IsSensitiveKey(), SanitizeWidgets()
+│   │   ├── watcher.go             # Watcher (fsnotify): one directory per dashboard + dashboards/ itself
+│   │   └── widgets.go             # InfoWidget, d.Widgets(), IsSensitiveKey(), SanitizeWidgets()
 │   │
 │   ├── discovery/                  # Service discovery via Docker/Podman/K8s labels
 │   │   ├── docker.go               # DockerDiscoverer, containerToService, swarmServiceToService
@@ -68,10 +73,15 @@ myserver/                              # repository root
 │   │   └── widgets_weather.go      # GET /api/widgets/openmeteo|weather
 │   │
 │   ├── middleware/                 # HTTP middlewares
+│   │   ├── auth.go                 # The allowlist gate, per dashboard
 │   │   ├── cors.go                 # Strict same-origin CORS
+│   │   ├── dispatch.go             # THE EDGE: URL -> dashboard, strip its prefix, publish it on ctx
+│   │   ├── dispatch_test.go        # Routing, prefix stripping, unknown segments
 │   │   ├── host_validation.go      # HostValidation with port-awareness
 │   │   ├── host_validation_test.go # Host validation tests
 │   │   ├── logging.go              # Request logging with zap
+│   │   ├── ratelimit.go            # Per-IP token bucket + TrustedProxy
+│   │   ├── security_headers.go     # CSP, HSTS (opt-in), frame/referrer/nosniff
 │   │   └── recovery.go             # Panic recovery with stack trace
 │   │
 │   ├── proxy/                      # Secure HTTP proxy client
@@ -219,15 +229,15 @@ myserver/                              # repository root
 
 | File | Structure | Loader | Purpose |
 |------|-----------|--------|---------|
-| `settings.yaml` | Flat map | `LoadSettings()` | Title, theme, color, language, layout, quicklaunch, scripts config |
-| `services.yaml` | List of `{groupName: [{svcName: {fields}}]}` | `LoadServices()` | Dashboard service groups |
-| `bookmarks.yaml` | List of `{groupName: [{bmName: {fields}}]}` | `LoadBookmarks()` | Dashboard bookmarks |
-| `widgets.yaml` | List of `{widgetType: {options}}` | `LoadWidgets()` | Global widgets (datetime, search, weather) |
-| `docker.yaml` | Map of `{serverName: {socket/host/port/tls}}` | `LoadDocker()` | Docker server configs |
-| `kubernetes.yaml` | Map of `{serverName: {kubeconfig}}` | `LoadKubernetes()` | K8s cluster configs |
-| `proxmox.yaml` | Map of `{serverName: {url, token, secret}}` | `LoadProxmox()` | Proxmox server configs |
-| `scripts.yaml` | `{scripts: {name: {command, description, ...}}}` | `LoadScriptsFile()` | Script definitions |
-| `auth.yaml` | `{allowlist, google, session, ...}` | `config.Auth()` | Optional email allowlist. Not in `cachedConfig`: it has its own atomic value with last-known-good semantics ([`authentication.md`](./authentication.md)) |
+| `settings.yaml` | Flat map | `d.Settings()` | Title, theme, color, language, layout, quicklaunch, scripts config |
+| `services.yaml` | List of `{groupName: [{svcName: {fields}}]}` | `d.Services()` | Dashboard service groups |
+| `bookmarks.yaml` | List of `{groupName: [{bmName: {fields}}]}` | `d.Bookmarks()` | Dashboard bookmarks |
+| `widgets.yaml` | List of `{widgetType: {options}}` | `d.Widgets()` | Global widgets (datetime, search, weather) |
+| `docker.yaml` | Map of `{serverName: {socket/host/port/tls}}` | `d.Docker()` | Docker server configs |
+| `kubernetes.yaml` | Map of `{serverName: {kubeconfig}}` | `d.Kubernetes()` | K8s cluster configs |
+| `proxmox.yaml` | Map of `{serverName: {url, token, secret}}` | `d.Proxmox()` | Proxmox server configs |
+| `scripts.yaml` | `{scripts: {name: {command, description, ...}}}` | `d.ScriptsFile()` | Script definitions |
+| `auth.yaml` | `{allowlist, google, session, ...}` | `d.Auth()` | Optional email allowlist, per dashboard. Not in the config snapshot: it has its own atomic value with last-known-good semantics ([`authentication.md`](./authentication.md)) |
 | `custom.css` | Plain CSS | — | Injected into `<head>` |
 | `custom.js` | Plain JS | — | Injected before `</body>` |
 

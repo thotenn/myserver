@@ -137,8 +137,14 @@ Save → `fsnotify` picks up the change → browser reloads within ~10 s.
 Full schema, every widget type, env vars, and the icon resolver →
 [`docs/context/configuration.md`](docs/context/configuration.md).
 
+Need more than one dashboard? Drop a second config directory under
+`config/dashboards/<name>/` and it is served at `/<name>` — no restart, no second
+container, no proxy rule. Nested dashboards are read-only and get their own
+optional `auth.yaml` →
+[`configuration.md#serving-several-dashboards`](docs/context/configuration.md#serving-several-dashboards).
+
 Need it under a path instead of at the root of the host? Set
-`HOMEPAGE_BASE_PATH=/team` and pass the prefix through your reverse proxy
+`HOMEPAGE_BASE_PATH=/team` and pass the path through your reverse proxy
 unstripped →
 [`configuration.md#serving-under-a-base-path`](docs/context/configuration.md#serving-under-a-base-path).
 

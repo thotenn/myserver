@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -101,29 +100,24 @@ func sign(secret, payload string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// SessionCookiePath scopes the session cookie to the dashboard the request is
-// being served under. At the root that is "/", exactly as before this existed;
-// under a base path it is the prefix, so a cookie minted for
-// `dashboard.example.com/team` is not sent to a sibling prefix on the same host.
-func SessionCookiePath(ctx context.Context) string {
-	if p := config.BasePathFrom(ctx); p != "" {
-		return p
-	}
-	return "/"
-}
+// Every function below takes the dashboard the session belongs to, and that
+// is the whole isolation story of the cookie: the dashboard decides the
+// signing key, the cookie name and the Path. A cookie minted for one dashboard
+// is therefore not sent to a sibling on the same host, and would not verify
+// there even if it were.
 
 // IssueSession writes a fresh session cookie for the given email.
-func IssueSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig, email string) error {
+func IssueSession(w http.ResponseWriter, d *config.Dashboard, cfg *config.AuthConfig, email string) error {
 	maxAge := cfg.SessionMaxAge()
 	expiresAt := time.Now().Add(maxAge)
-	value, err := encodeSession(cfg.SessionSecret(), NormalizeEmail(email), expiresAt)
+	value, err := encodeSession(d.SessionSecret(cfg), NormalizeEmail(email), expiresAt)
 	if err != nil {
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:  cfg.CookieName(),
+		Name:  d.CookieName(cfg),
 		Value: value,
-		Path:  SessionCookiePath(ctx),
+		Path:  d.CookiePath(),
 		// HttpOnly is not optional here: config/custom.js is arbitrary
 		// operator JavaScript injected into the dashboard, so a readable
 		// session cookie would be exposed by design.
@@ -136,11 +130,11 @@ func IssueSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthCo
 }
 
 // ClearSession expires the session cookie.
-func ClearSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig) {
+func ClearSession(w http.ResponseWriter, d *config.Dashboard, cfg *config.AuthConfig) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     cfg.CookieName(),
+		Name:     d.CookieName(cfg),
 		Value:    "",
-		Path:     SessionCookiePath(ctx),
+		Path:     d.CookiePath(),
 		HttpOnly: true,
 		Secure:   cfg.CookieSecure(),
 		SameSite: http.SameSiteLaxMode,
@@ -149,20 +143,20 @@ func ClearSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthCo
 }
 
 // ReadSession verifies the session cookie on a request.
-func ReadSession(r *http.Request, cfg *config.AuthConfig) (*Session, error) {
-	if cfg == nil {
+func ReadSession(r *http.Request, d *config.Dashboard, cfg *config.AuthConfig) (*Session, error) {
+	if d == nil || cfg == nil {
 		return nil, ErrNoSession
 	}
-	c, err := r.Cookie(cfg.CookieName())
+	c, err := r.Cookie(d.CookieName(cfg))
 	if err != nil || c.Value == "" {
 		return nil, ErrNoSession
 	}
-	return decodeSession(cfg.SessionSecret(), c.Value)
+	return decodeSession(d.SessionSecret(cfg), c.Value)
 }
 
 // MaybeRenewSession re-issues the cookie when it is past its half-life, so an
 // active session slides forward instead of expiring under the user.
-func MaybeRenewSession(ctx context.Context, w http.ResponseWriter, cfg *config.AuthConfig, s *Session) {
+func MaybeRenewSession(w http.ResponseWriter, d *config.Dashboard, cfg *config.AuthConfig, s *Session) {
 	if s == nil {
 		return
 	}
@@ -170,5 +164,5 @@ func MaybeRenewSession(ctx context.Context, w http.ResponseWriter, cfg *config.A
 		return
 	}
 	// A failure here only costs the renewal; the current cookie stays valid.
-	_ = IssueSession(ctx, w, cfg, s.Email)
+	_ = IssueSession(w, d, cfg, s.Email)
 }

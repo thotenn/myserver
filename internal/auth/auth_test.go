@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -61,10 +60,18 @@ func TestIsAllowed(t *testing.T) {
 	}
 }
 
+// testDashboard is a root dashboard over an empty directory: enough to own a
+// cookie name, a Path and a signing key, which is all a session needs.
+func testDashboard(t *testing.T) *config.Dashboard {
+	t.Helper()
+	return config.NewDashboard("", "", t.TempDir())
+}
+
 func TestSession_RoundTrip(t *testing.T) {
 	cfg := testConfig()
+	d := testDashboard(t)
 	w := httptest.NewRecorder()
-	if err := IssueSession(context.Background(), w, cfg, "Person@Example.com"); err != nil {
+	if err := IssueSession(w, d, cfg, "Person@Example.com"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,7 +88,7 @@ func TestSession_RoundTrip(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.AddCookie(cookie)
-	session, err := ReadSession(r, cfg)
+	session, err := ReadSession(r, d, cfg)
 	if err != nil {
 		t.Fatalf("a freshly issued cookie must verify: %v", err)
 	}
@@ -92,8 +99,9 @@ func TestSession_RoundTrip(t *testing.T) {
 
 func TestSession_RejectsTamperedCookie(t *testing.T) {
 	cfg := testConfig()
+	d := testDashboard(t)
 	w := httptest.NewRecorder()
-	if err := IssueSession(context.Background(), w, cfg, "person@example.com"); err != nil {
+	if err := IssueSession(w, d, cfg, "person@example.com"); err != nil {
 		t.Fatal(err)
 	}
 	original := w.Result().Cookies()[0].Value
@@ -114,8 +122,8 @@ func TestSession_RejectsTamperedCookie(t *testing.T) {
 	}
 	for name, value := range cases {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: cfg.CookieName(), Value: value})
-		if _, err := ReadSession(r, cfg); err == nil {
+		r.AddCookie(&http.Cookie{Name: d.CookieName(cfg), Value: value})
+		if _, err := ReadSession(r, d, cfg); err == nil {
 			t.Errorf("%s: a forged cookie was accepted", name)
 		}
 	}
@@ -123,42 +131,45 @@ func TestSession_RejectsTamperedCookie(t *testing.T) {
 
 func TestSession_RejectsExpiredCookie(t *testing.T) {
 	cfg := testConfig()
-	expired, err := encodeSession(cfg.SessionSecret(), "person@example.com", time.Now().Add(-time.Minute))
+	d := testDashboard(t)
+	expired, err := encodeSession(d.SessionSecret(cfg), "person@example.com", time.Now().Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.AddCookie(&http.Cookie{Name: cfg.CookieName(), Value: expired})
+	r.AddCookie(&http.Cookie{Name: d.CookieName(cfg), Value: expired})
 
-	if _, err := ReadSession(r, cfg); err == nil {
+	if _, err := ReadSession(r, d, cfg); err == nil {
 		t.Error("an expired cookie must be rejected even though its signature is valid")
 	}
 }
 
 func TestSession_RejectsCookieSignedWithAnotherSecret(t *testing.T) {
 	cfg := testConfig()
+	d := testDashboard(t)
 	other := testConfig()
 	other.Session.Secret = "rotated-secret"
 
-	value, err := encodeSession(other.SessionSecret(), "person@example.com", time.Now().Add(time.Hour))
+	value, err := encodeSession(d.SessionSecret(other), "person@example.com", time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.AddCookie(&http.Cookie{Name: cfg.CookieName(), Value: value})
+	r.AddCookie(&http.Cookie{Name: d.CookieName(cfg), Value: value})
 
-	if _, err := ReadSession(r, cfg); err == nil {
+	if _, err := ReadSession(r, d, cfg); err == nil {
 		t.Error("rotating session.secret must invalidate existing cookies")
 	}
 }
 
 func TestSession_SlidingRenewal(t *testing.T) {
-	cfg := testConfig() // maxAge 1h
+	cfg := testConfig()
+	d := testDashboard(t) // maxAge 1h
 
 	// Fresh cookie: more than half its life left, so nothing is re-issued.
 	fresh := &Session{Email: "person@example.com", ExpiresAt: time.Now().Add(50 * time.Minute)}
 	w := httptest.NewRecorder()
-	MaybeRenewSession(context.Background(), w, cfg, fresh)
+	MaybeRenewSession(w, d, cfg, fresh)
 	if len(w.Result().Cookies()) != 0 {
 		t.Error("a fresh session should not be re-issued on every request")
 	}
@@ -166,7 +177,7 @@ func TestSession_SlidingRenewal(t *testing.T) {
 	// Past its half-life: renewed so an active user is not logged out.
 	old := &Session{Email: "person@example.com", ExpiresAt: time.Now().Add(10 * time.Minute)}
 	w = httptest.NewRecorder()
-	MaybeRenewSession(context.Background(), w, cfg, old)
+	MaybeRenewSession(w, d, cfg, old)
 	cookies := w.Result().Cookies()
 	if len(cookies) != 1 {
 		t.Fatalf("expected the session to slide forward, got %d cookies", len(cookies))
@@ -175,8 +186,9 @@ func TestSession_SlidingRenewal(t *testing.T) {
 
 func TestClearSession(t *testing.T) {
 	cfg := testConfig()
+	d := testDashboard(t)
 	w := httptest.NewRecorder()
-	ClearSession(context.Background(), w, cfg)
+	ClearSession(w, d, cfg)
 
 	c := w.Result().Cookies()[0]
 	if c.MaxAge >= 0 || c.Value != "" {

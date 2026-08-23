@@ -6,8 +6,11 @@
 #
 # Copies the skill's template into config/dashboards/<slug>/, substituting the
 # slug everywhere the templates reference it, and refuses to touch a directory
-# that already exists. It writes CONFIG ONLY: running the instance and routing
-# the prefix is deployment work — see ../guides/deploy.md.
+# that already exists.
+#
+# Creating the directory IS creating the dashboard: one process serves them all,
+# and a running one starts serving /<slug> without a restart. There is nothing
+# to deploy afterwards — see ../guides/deploy.md.
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,13 +25,20 @@ if [[ -z "$slug" ]]; then
   exit 1
 fi
 
-# Same charset the server enforces for HOMEPAGE_BASE_PATH: anything else makes
-# the instance refuse to start, so it is better refused here.
+# Same charset the server enforces for a slug: a directory it cannot validate is
+# skipped with a log line rather than served, so it is better refused here.
 if [[ ! "$slug" =~ ^[A-Za-z0-9._~-]+$ ]]; then
   echo "invalid slug '$slug': allowed characters are A-Z a-z 0-9 . _ ~ -" >&2
-  echo "(nested prefixes like /clients/acme work, but create them by hand)" >&2
   exit 1
 fi
+
+# These would shadow the root dashboard's own routes.
+case "$slug" in
+  api|auth|static)
+    echo "'$slug' is reserved: a dashboard with that name would shadow /$slug" >&2
+    exit 1
+    ;;
+esac
 
 target="$config_root/dashboards/$slug"
 if [[ -e "$target" ]]; then
@@ -47,14 +57,14 @@ done < <(find "$target" -type f -print0)
 
 echo "created $target"
 echo ""
+echo "it is already being served at /$slug — a running process picks up the new"
+echo "directory without a restart. No container, no proxy rule, no redirect URI."
+echo ""
 echo "next:"
 echo "  1. edit settings.yaml / services.yaml / widgets.yaml"
 echo "  2. to require login: fill auth.yaml.example, export its variables, then"
-echo "     rename it to auth.yaml. Left as .example, the dashboard is public."
-echo "     - session.cookieName must be unique on this hostname"
-echo "     - google.redirectURL must carry /$slug AND be registered in the Google console"
-echo "  3. run an instance:  HOMEPAGE_CONFIG_DIR=$target HOMEPAGE_BASE_PATH=/$slug"
-echo "  4. route /$slug to it WITHOUT stripping the prefix, and point its"
-echo "     healthcheck at /$slug/api/healthcheck"
+echo "     rename it to auth.yaml. Left as .example, the dashboard is PUBLIC."
+echo "     google.redirectURL names the ROOT dashboard's callback, not /$slug's."
+echo "  3. check it:  curl -s localhost:3000/$slug/api/services"
 echo ""
-echo "details: $SKILL_DIR/guides/deploy.md"
+echo "details: $SKILL_DIR/guides/auth.md and $SKILL_DIR/guides/deploy.md"

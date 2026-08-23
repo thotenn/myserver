@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/thotenn/myserver/internal/config"
 )
 
 // allowedConfigNames lists exact filenames that may be served from the
@@ -43,8 +42,14 @@ var allowedImageExtensions = map[string]string{
 //
 // All other paths return 404. The handler is path-traversal safe:
 //   - `..` and absolute paths are rejected up front.
-//   - After cleaning, the resolved path must remain inside ConfigDir().
+//   - After cleaning, the resolved path must remain inside the config
+//     directory OF THIS DASHBOARD, which is what stops one client's
+//     custom.css request from reading another's.
 func ConfigFile(w http.ResponseWriter, r *http.Request) {
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
 	pathParam := chi.URLParam(r, "path")
 	if pathParam == "" {
 		http.Error(w, "Not found", http.StatusNotFound)
@@ -74,9 +79,9 @@ func ConfigFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := filepath.Join(config.ConfigDir(), pathParam)
+	filePath := filepath.Join(d.Dir, pathParam)
 	cleanPath := filepath.Clean(filePath)
-	cleanDir := filepath.Clean(config.ConfigDir())
+	cleanDir := filepath.Clean(d.Dir)
 	if !strings.HasPrefix(cleanPath, cleanDir+string(filepath.Separator)) &&
 		cleanPath != cleanDir {
 		http.Error(w, "Not found", http.StatusNotFound)

@@ -44,7 +44,7 @@ restart. All live in `internal/handlers/auth.go`.
 - **Function:** `Dashboard() http.HandlerFunc`
 - **Description:** Renders the full dashboard server-side. Loads all YAMLs (settings, services, bookmarks, widgets), determines theme/color/language, and passes `PageData` to `templates.Index()`.
 - **Content negotiation:** NO — always returns HTML.
-- **Hash:** Uses `config.CurrentHash()` for cache-busting in asset URLs.
+- **Hash:** Uses the requesting dashboard's own config hash (`d.Hash()`) for cache-busting in asset URLs.
 
 ---
 
@@ -55,7 +55,7 @@ restart. All live in `internal/handlers/auth.go`.
 | Route | Method | Handler | File | Description |
 |-------|--------|---------|------|-------------|
 | `/api/healthcheck` | GET | `HealthCheck` | `internal/handlers/health.go` | Returns `{"status": "OK"}`. Used by Docker healthcheck. |
-| `/api/hash` | GET | `Hash` | `internal/handlers/hash.go` | Returns current config hash. Reads `atomic.Value` via `CurrentHash()`. Fallback: recompute on-the-fly. |
+| `/api/hash` | GET | `Hash` | `internal/handlers/hash.go` | Returns the config hash **of the dashboard being served** (`d.Hash()`), from its atomic snapshot or recomputed on the fly. Per dashboard on purpose: editing one client's YAML must not reload every other dashboard's browser. |
 | `/api/reload` | POST | `Reload` | `internal/handlers/reload.go` | No-op currently. Future: will invalidate caches. |
 | `/api/validate` | GET | `Validate` | `internal/handlers/validate.go` | Loads and parses all YAMLs. Returns `{"valid": true}` or list of parse errors. |
 | `/api/config/{path}` | GET | `ConfigFile` | `internal/handlers/config.go` | Serves individual config files from `HOMEPAGE_CONFIG_DIR`. Path-traversal safe. |

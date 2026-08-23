@@ -32,9 +32,17 @@ func InvalidateProxyCache() {
 	}
 }
 
-// proxyCacheKey returns a stable cache key for a widget + endpoint.
-func proxyCacheKey(widget *config.WidgetConfig, endpoint string) string {
+// proxyCacheKey returns a stable cache key for a widget + endpoint, scoped to
+// the dashboard that asked.
+//
+// Two dashboards with byte-identical widget config would otherwise share an
+// entry. That is not a leak in itself — identical config means identical
+// upstream — but the cache is not the place to be relying on that, and the
+// slug costs nothing.
+func proxyCacheKey(d *config.Dashboard, widget *config.WidgetConfig, endpoint string) string {
 	h := sha256.New()
+	_, _ = h.Write([]byte(d.Slug))
+	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(widget.Type))
 	_, _ = h.Write([]byte(endpoint))
 	_, _ = h.Write([]byte(widget.URL))
@@ -49,6 +57,10 @@ const MaxProxyBodyBytes = 1 << 20 // 1 MiB
 // services.yaml, validates the endpoint, and forwards the request via the
 // generic proxy handler. Body size is capped to MaxProxyBodyBytes.
 func Proxy(w http.ResponseWriter, r *http.Request) {
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
 	group := r.URL.Query().Get("group")
 	service := r.URL.Query().Get("service")
 	endpoint := r.URL.Query().Get("endpoint")
@@ -58,7 +70,7 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	widget := findServiceWidget(group, service)
+	widget := findServiceWidget(d, group, service)
 	if widget == nil {
 		http.Error(w, "service not found", http.StatusNotFound)
 		return
@@ -72,7 +84,7 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check proxy cache first (GET only; POSTs are always forwarded).
-	cacheKey := proxyCacheKey(widget, endpoint)
+	cacheKey := proxyCacheKey(d, widget, endpoint)
 	var data interface{}
 	if r.Method == http.MethodGet {
 		if cached, ok := proxyCache.Get(cacheKey); ok {
@@ -232,9 +244,20 @@ func GetWidgetRegistry() *widgets.Registry {
 	return widgets.DefaultRegistry
 }
 
-// findServiceWidget finds the widget configuration for a service.
-func findServiceWidget(group, service string) *config.WidgetConfig {
-	services, err := config.LoadServices()
+// findServiceWidget finds the widget configuration for a service, in the
+// config of the dashboard the request is being served for.
+//
+// This is the single most dangerous resolution in the codebase. The widget it
+// returns carries apiKey / token / password, and the caller then calls the
+// upstream with them. Resolved against a global config, a request naming
+// another dashboard's group and service would make the server fetch that
+// dashboard's upstream with that dashboard's credentials and hand the body
+// back — exfiltration of credentials' worth of access, not just of data.
+//
+// The route is not registered for client dashboards at all (see
+// setupClientRoutes); this scoping is the second lock on the same door.
+func findServiceWidget(d *config.Dashboard, group, service string) *config.WidgetConfig {
+	services, err := d.Services()
 	if err != nil {
 		return nil
 	}

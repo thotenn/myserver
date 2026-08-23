@@ -3,7 +3,11 @@
 The full schema and the failure table live in
 `docs/context/authentication.md`; `add-widget/guides/allowlist.md` covers
 setting up a single dashboard. This guide is only about what changes when
-**several dashboards share one hostname** — which is where the two traps are.
+**several dashboards share one hostname**.
+
+The short version: much less than you would expect. The two things that used to
+be traps — a shared cookie name, and one Google redirect URI per dashboard — are
+now handled by the code. What is left is one rule you have to get right.
 
 ---
 
@@ -26,70 +30,63 @@ allowlist:
 google:
   clientId:     "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
   clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
-  redirectURL:  "https://example.com/acme/auth/google/callback"
+  # The ROOT dashboard's callback — see below. Not /acme/...
+  redirectURL:  "https://example.com/auth/google/callback"
 session:
-  cookieName: myserver_acme
-  secret:     "{{HOMEPAGE_VAR_SESSION_SECRET_ACME}}"
+  secret: "{{HOMEPAGE_VAR_SESSION_SECRET_ACME}}"
 ```
 
-## Trap 1 — the cookie name must differ per dashboard
+## The one rule: point `redirectURL` at the root dashboard's callback
 
-**Symptom:** you can sign in, but the client dashboard bounces back to its login
-occasionally, or one dashboard signs you out of the other. It looks random.
+`redirectURL` is mandatory and explicit — never derived from the `Host` header,
+because the dashboard route does not validate `Host` and a forged one would point
+the login somewhere else.
 
-**Cause:** the default cookie name is `myserver_session` for every instance. A
-session cookie is scoped to its dashboard's path — the root dashboard's is
-`Path=/`, which the browser sends to `/acme` as well. Two cookies with the same
-name arrive at the client instance, which verifies whichever one it reads first
-against its own signing secret; the wrong one fails and the request looks
-anonymous.
-
-**Fix:** a distinct `session.cookieName` per dashboard on that hostname
-(`myserver_acme`). One line, no downside.
-
-Two dashboards that both live under prefixes (`/home` and `/acme`) never overlap
-by path, so the collision cannot happen — but naming them apart anyway costs
-nothing and survives someone moving a dashboard to the root later.
-
-Give each dashboard its own `session.secret` too. A shared secret means a cookie
-minted for one dashboard verifies at the other, and then only the cookie *name*
-and *path* are keeping them apart.
-
-## Trap 2 — Google needs the prefix, registered
-
-`redirectURL` is mandatory and explicit: it is never derived from the `Host`
-header, because the dashboard route does not validate `Host` and a forged one
-would point the login somewhere else.
-
-Under a base path the callback carries the prefix:
+**Every dashboard names the same one**, the root dashboard's:
 
 ```
-https://example.com/acme/auth/google/callback
+https://example.com/auth/google/callback
 ```
 
-That exact URL has to be listed as an **authorised redirect URI** on the OAuth
-client in the Google console, and to match `google.redirectURL` byte for byte.
-One OAuth client can hold several redirect URIs, so one client covers every
-dashboard — but each new prefixed dashboard is one new entry there.
+That single URL is the only authorised redirect URI the Google console ever
+needs. Adding a client adds nothing there — which is the operational cost this
+whole design exists to remove.
+
+It works because the login carries the dashboard it belongs to, inside the
+**signed** OAuth state cookie. The callback reads that slug, resolves *that*
+dashboard's policy, checks *its* allowlist, and issues *its* session cookie. The
+signature is not decoration: the cookie sits in the caller's own browser, and the
+slug is what decides which allowlist judges them.
 
 A mismatch shows up as `redirect_uri_mismatch` from Google, before the user ever
 reaches the dashboard.
 
-You can also give a dashboard its own OAuth client (`clientId` +
-`clientSecret` + `redirectURL` of its own) when the client wants to own the
-consent screen. Nothing in the code assumes they are shared.
+**The exception**, if a client wants to own its own consent screen: give that
+dashboard its own `clientId`, `clientSecret` and a `redirectURL` of
+`https://example.com/acme/auth/google/callback`, and register that URI too. Its
+own callback route exists for exactly this. Nothing else changes.
 
 ## What you do not have to do
 
-- **The OAuth state cookie takes care of itself.** It has to stay at `Path=/`
-  (the `__Host-` prefix requires it), so it carries the base path in its name
-  instead — `__Host-myserver_oauth_acme`. Two logins in flight under different
-  prefixes cannot overwrite each other's state. No configuration.
-- **The session cookie is already scoped.** Its `Path` is the dashboard's base
-  path, so a client's session is not even sent to `/` or to another prefix.
-- **The allowlist is re-checked on every request**, not only at login. Removing
-  an address evicts that person on their next click; you do not have to wait for
-  a cookie to expire or restart anything.
+- **Name the session cookie.** The default already carries the slug —
+  `myserver_session` at the root, `myserver_session_acme` for a client — because
+  dashboards share a hostname and `Path` alone does not disambiguate two
+  same-named cookies. Overriding `session.cookieName` with a name another
+  dashboard uses re-creates the problem; leaving it alone is correct.
+- **Worry about a shared signing key.** Each dashboard has its own, generated per
+  dashboard when `session.secret` is unset. And even if two dashboards ended up
+  with the same key, the allowlist is re-checked per request against the
+  dashboard being served, so a cookie from one still does not open the other.
+  Setting an explicit `session.secret` is still worth it: without one, every
+  restart signs everybody out.
+- **Manage the OAuth state cookie.** It stays at `Path=/` (`__Host-` requires
+  it) and carries the prefix in its name — `__Host-myserver_oauth_acme` — so two
+  logins in flight under different dashboards cannot overwrite each other. The
+  callback finds the right one by matching the state the provider echoed back.
+- **Scope the session cookie.** Its `Path` is the dashboard's prefix, so a
+  client's session is not even sent to `/` or to another dashboard.
+- **Restart anything after an allowlist edit.** The policy is read per request,
+  so removing an address evicts that person on their next click.
 
 ## Already behind an SSO proxy?
 
@@ -99,22 +96,28 @@ let the proxy assert the identity. The header is only honoured when the peer is
 in `TRUSTED_PROXIES`, so an instance reachable directly cannot be spoofed.
 
 Per dashboard this is the same as anything else: its own `auth.yaml`, its own
-allowlist. The proxy still has to route the prefix without stripping it.
+allowlist. The proxy still has to pass the path through without stripping it —
+the first segment is how the process knows which dashboard was asked for.
 
 ## Failure modes, briefly
 
+Everything below is **per dashboard**: a client in lockdown answers 503 on its
+own prefix and nowhere else, and the rest of the host keeps serving.
+
 | Situation | Behaviour |
 |---|---|
-| `auth.yaml` absent | Dashboard is public. No cookies, no redirects, `/auth/*` answers 404. |
+| `auth.yaml` absent | Dashboard is public. No cookies, no redirects, `/auth/*` answers 404. A client dashboard in this state is warned about at startup. |
 | Broken YAML, a previous good policy in memory | Keeps the last good policy, logs loudly. |
-| Broken YAML at startup | Refuses to start. |
-| The file vanished while login was active | Lockdown: 503 for everything except the healthcheck. |
+| Broken YAML at startup, ROOT dashboard | Refuses to start. |
+| Broken YAML at startup, CLIENT dashboard | The host starts; that dashboard answers 503 and says so on every request. One client's typo is not everyone's outage. |
+| The file vanished while login was active | Lockdown: 503 for everything on that dashboard except the healthcheck. |
 | Well-formed, empty allowlist | Opens the dashboard. The only way a config failure can mean "public". |
 | Authenticated, not on the allowlist | 403 and the denied page. No cookie is issued — authenticating proves who you are, not that you are welcome. |
+| A session from another dashboard, renamed by hand | Rejected: different signing key, and the allowlist is re-checked anyway. |
 
-`HOMEPAGE_AUTH_REQUIRED=true` on an instance that can never afford to be public
-turns "no allowlist" into a startup failure and a 503 rather than an open
-dashboard. Worth setting on a client instance.
+`HOMEPAGE_AUTH_REQUIRED=true` turns "no allowlist" into a refusal rather than an
+open dashboard. It is process-wide, so it applies to every dashboard at once: a
+client without an `auth.yaml` then answers 503 instead of being public.
 
 ## Checklist for a gated client dashboard
 
@@ -131,5 +134,5 @@ for p in / api/services api/widgets api/config/custom.css; do
 done
 ```
 
-Then confirm the cookie: signing in at `/acme` must not sign you in at `/`, and
-the cookie's `Path` must be `/acme`.
+Then confirm the cookie: signing in at `/acme` must not sign you in at `/`, the
+cookie must be named `myserver_session_acme`, and its `Path` must be `/acme`.

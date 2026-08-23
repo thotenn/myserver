@@ -1,16 +1,20 @@
 # RENAME THIS FILE to `auth.yaml` to turn login on. While it is named
-# `.example` the loader ignores it and the dashboard is public.
+# `.example` the loader ignores it and the dashboard is PUBLIC — the startup log
+# warns about that.
 #
 # It ships renamed on purpose: the allowlist IS the switch (no `enabled` flag),
-# and an `auth.yaml` whose {{HOMEPAGE_VAR_*}} placeholders are unresolved makes
-# the instance refuse to START — the correct fail-visible behaviour, and a
+# and an `auth.yaml` whose {{HOMEPAGE_VAR_*}} placeholders are unresolved locks
+# this dashboard down with a 503 — the correct fail-visible behaviour, and a
 # confusing first run. Fill the values, export the variables, then rename.
 #
-# See ../../guides/auth.md — two things only bite when several dashboards share
-# a hostname, and both are here:
-#   - `session.cookieName` must differ per dashboard (otherwise: login loop).
-#   - `google.redirectURL` carries the prefix AND must be registered as an
-#     authorised redirect URI in the Google console.
+# See ../../guides/auth.md. The only thing to get right when several dashboards
+# share a hostname is `google.redirectURL`: it names the ROOT dashboard's
+# callback, not this one's. That single URL is the only authorised redirect URI
+# the Google console needs, for every dashboard — the login carries which
+# dashboard it belongs to inside a signed cookie.
+#
+# The session cookie takes care of itself: its default name already carries the
+# slug (myserver_session_acme) and its Path is /acme.
 
 allowlist:
   emails:
@@ -22,11 +26,12 @@ allowlist:
 google:
   clientId: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_ID}}"
   clientSecret: "{{HOMEPAGE_VAR_GOOGLE_CLIENT_SECRET}}"
-  redirectURL: "https://example.com/acme/auth/google/callback"
+  # The ROOT dashboard's callback. Only change this if this dashboard has its
+  # own OAuth client, in which case register its own URI too.
+  redirectURL: "https://example.com/auth/google/callback"
 
 session:
-  cookieName: myserver_acme
-  # Unset ⇒ a random key per process, so every restart signs everyone out.
+  # Unset ⇒ a random key per dashboard, so every restart signs everyone out.
   secret: "{{HOMEPAGE_VAR_SESSION_SECRET_ACME}}"
   maxAge: 168h
   secure: true

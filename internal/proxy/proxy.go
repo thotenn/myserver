@@ -144,8 +144,11 @@ func (d *DefaultDoer) Do(req *http.Request) (*http.Response, error) {
 // caps the body read at MaxResponseBodyBytes.
 //
 // Special scheme support:
-//   - file://  reads a local file directly.  The path is resolved relative
-//     to the config directory when it does not start with "/".
+//   - file://  reads a local file directly.  A relative path is resolved
+//     against the config directory of the dashboard on ctx, falling back to
+//     the root one when the caller is not serving a request (widget warm-up,
+//     tests). Only the root dashboard reaches this: /api/services/proxy is not
+//     registered for a client.
 func Proxy(ctx context.Context, rawURL string, params *Params) (*Result, error) {
 	if params == nil {
 		params = &Params{}
@@ -158,7 +161,7 @@ func Proxy(ctx context.Context, rawURL string, params *Params) (*Result, error) 
 	if strings.HasPrefix(rawURL, "file://") {
 		path := strings.TrimPrefix(rawURL, "file://")
 		if !strings.HasPrefix(path, "/") {
-			path = filepath.Join(config.ConfigDir(), path)
+			path = filepath.Join(configDirFor(ctx), path)
 		}
 		body, err := os.ReadFile(path)
 		if err != nil {
@@ -421,4 +424,13 @@ func FormatAPICall(template string, args map[string]string) string {
 // IsJSON checks if a content type is JSON.
 func IsJSON(contentType string) bool {
 	return strings.Contains(contentType, "application/json")
+}
+
+// configDirFor returns the config directory a relative file:// URL resolves
+// against: the dashboard's own when this is a request, the root one otherwise.
+func configDirFor(ctx context.Context) string {
+	if d := config.DashboardFrom(ctx); d != nil {
+		return d.Dir
+	}
+	return config.ConfigDir()
 }

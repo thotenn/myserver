@@ -3,12 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/thotenn/myserver/internal/config"
 )
 
 func Bookmarks(w http.ResponseWriter, r *http.Request) {
-	bookmarks, err := config.LoadBookmarks()
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
+	bookmarks, err := d.Bookmarks()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

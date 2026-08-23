@@ -182,6 +182,19 @@ When the dashboard is served under a base path
 prefix is part of this URL — `https://dashboard.example.com/team/auth/google/callback`
 — and the same value has to be registered in the Google console.
 
+**With several dashboards, they all name the same one.** A nested dashboard
+normally points `redirectURL` at the ROOT dashboard's callback rather than its
+own, so the Google console needs a single authorised redirect URI no matter how
+many dashboards there are. That works because the login carries the dashboard it
+belongs to inside the signed OAuth state cookie: the callback reads that name,
+applies **that** dashboard's allowlist, and issues **that** dashboard's session.
+The signature is what makes the name trustworthy — the cookie lives in the
+caller's own browser, and the name selects the policy that judges them.
+
+A dashboard that wants its own consent screen can still declare its own
+`clientId`, `clientSecret` and `redirectURL` pointing at its own
+`/<name>/auth/google/callback`; that route exists on every dashboard.
+
 ### `session`
 
 The cookie is stateless: `email | expiry | nonce` signed with HMAC-SHA256, set
@@ -189,12 +202,19 @@ The cookie is stateless: `email | expiry | nonce` signed with HMAC-SHA256, set
 same page), `SameSite=Lax` and `Secure` by default. It slides forward once
 less than half its life is left.
 
-The cookie's `Path` is the dashboard's own: `/` normally, and the base path when
-one is configured, so a session issued for `/team` is not sent to anything else
-on that host.
+The cookie's `Path` is the dashboard's own: `/` normally, and its prefix when
+one applies, so a session issued for `/team` is not sent to anything else on that
+host.
 
-Leaving `secret` unset generates a random key per process, so sessions do not
-survive a restart or redeploy. Set it to keep people signed in across
+Its **name** is per dashboard too — `myserver_session` for the root dashboard and
+`myserver_session_<name>` for a nested one. `Path` alone would not be enough:
+several dashboards share a hostname, so a request to `/partners` carries the
+root's `Path=/` cookie as well, and two cookies with the same name are ambiguous.
+Set `cookieName` only if you have a reason to, and never to a name another
+dashboard uses.
+
+Leaving `secret` unset generates a random key **per dashboard**, so sessions do
+not survive a restart or redeploy. Set it to keep people signed in across
 deployments. Rotating it invalidates every existing cookie — that is the only
 "sign out everywhere" available, since there is no session store.
 
@@ -269,14 +289,28 @@ The `next` destination is only accepted when it starts with a single `/`.
 `//evil.example` and `/\evil.example` are read by browsers as off-site URLs,
 so both are rejected, and the check runs again at the moment of use.
 
-Under a base path every path in that flow carries the prefix
-(`/team/auth/login`, `/team/auth/google/callback`), while `next` stays relative
-to the dashboard and is re-rooted under the prefix when it is used — so a
-destination cannot lead out of the dashboard it was created in. The short-lived
-OAuth state cookie is named after the prefix (`__Host-myserver_oauth_team`),
-because `__Host-` requires `Path=/` and therefore cannot be scoped the way the
-session cookie is: without a distinct name, two logins in flight under
-different prefixes on one host would overwrite each other's state.
+Under a prefix every path in that flow carries it (`/team/auth/login`,
+`/team/auth/google/callback`), while `next` stays relative to the dashboard and
+is re-rooted under the prefix when it is used — so a destination cannot lead out
+of the dashboard it was created in.
+
+The short-lived OAuth state cookie is **signed** and is named after the prefix
+(`__Host-myserver_oauth_team`). Two reasons, and they are different:
+
+- The **name** carries the prefix because `__Host-` requires `Path=/` and so the
+  cookie cannot be scoped the way the session cookie is. Without a distinct name,
+  two logins in flight on different dashboards of one host would overwrite each
+  other's state.
+- The **signature** protects the dashboard name inside the payload. With a shared
+  callback, that name is what selects the allowlist the login is validated
+  against, and the cookie is in the caller's own browser — so it is verified
+  before it is believed. The signing key is per process and random: a restart
+  simply asks anyone mid-login to start again.
+
+The callback cannot ask for the cookie by name, since it does not yet know which
+dashboard the flow belongs to. It looks at every OAuth state cookie the browser
+sent, keeps the ones whose signature verifies, and picks the one whose state
+matches the one Google echoed back, in constant time.
 
 ### Why there is no JWT library
 

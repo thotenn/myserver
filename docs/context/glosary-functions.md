@@ -6,24 +6,38 @@
 
 ## `internal/config` — YAML Configuration
 
+### Dashboards
+
+| Function/Method | File | Description |
+|-----------------|------|-------------|
+| `NewDashboard(slug, prefix, dir) *Dashboard` | `dashboard.go` | One served dashboard. Slug `""` is the root one. |
+| `Dashboard.IsRoot() bool` | `dashboard.go` | The only dashboard that owns the host: scripts, the widget proxy, container discovery. |
+| `Dashboard.CookieName(cfg) string` | `dashboard.go` | This dashboard's session cookie name. The default carries the slug, since dashboards share a hostname. |
+| `Dashboard.SessionSecret(cfg) string` | `dashboard.go` | Its signing key: the configured one, or a random fallback generated **per dashboard**. |
+| `Dashboard.PrefixPath(p) string` | `dashboard.go` | A dashboard-relative path, re-rooted under its prefix. |
+| `InitDashboards() (*DashboardSet, []error)` | `dashboards.go` | Scans the config tree and publishes the registry. Safe to call again: dashboards that survive keep their identity, so adding one does not sign the others out. |
+| `ScanDashboards(prev, rootDir, basePath)` | `dashboards.go` | Builds a set: the root dashboard plus one per sub-directory of `dashboards/`. Rejects reserved and malformed names. |
+| `DashboardSet.Resolve(path) *Dashboard` | `dashboards.go` | Which dashboard owns a request path, or nil. |
+| `WithDashboard(ctx, d)` / `DashboardFrom(ctx)` | `dashboard.go` | The request-scoped channel. `DashboardFrom` returns nil rather than a default — falling back to "the root one" is the cross-tenant read this design removes. |
+
 ### General Config
 
 | Function | File | Description |
 |----------|------|-------------|
 | `ConfigDir() string` | `config.go` | Returns config directory. Reads `HOMEPAGE_CONFIG_DIR`, default `/app/config`. Thread-safe with RWMutex. |
-| `SetConfigDir(dir)` | `config.go` | Override for testing. |
+| `SetConfigDir(dir)` | `config.go` | Override the ROOT config dir, for testing. |
 | `ResetConfigDir()` | `config.go` | Reset for testing. |
 | `EnsureConfigDir() error` | `config.go` | Creates config directory if it doesn't exist. |
-| `CheckAndCopyConfig(filename) error` | `config.go` | If file doesn't exist, copies from `internal/config/skeleton/` (embed.FS). |
-| `ReadConfigFile(filename) ([]byte, error)` | `config.go` | Reads file + applies `SubstituteEnvVars()`. |
-| `ConfigHash() (string, error)` | `config.go` | SHA256 of all YAMLs + custom.css + custom.js. Truncated to 16 chars. Used for cache busting. |
-| `CurrentHash() string` | `config.go` | Reads current hash from `atomic.Value`. Thread-safe. |
+| `EnsureSkeleton(dir) error` | `config.go` | Seeds a config directory from `internal/config/skeleton/` (embed.FS), skipping files that exist. Called once at startup, for the ROOT directory only. |
+| `readConfigFile(dir, filename)` | `config.go` | Reads one dashboard's file + applies `SubstituteEnvVars()`. A missing file is `nil, nil`, not an error. |
+| `configHash(dir) (string, error)` | `config.go` | SHA256 of one dashboard's YAMLs + custom.css + custom.js. Truncated to 16 chars. Used for cache busting; reached through `Dashboard.Hash()`. |
+| `Dashboard.Hash() string` | `dashboard.go` | This dashboard's current config hash, from its atomic snapshot. Thread-safe. There is no process-wide equivalent. |
 | `Auth() AuthState` | `auth.go` | Current auth policy. Never returns nil; before the first load it reports lockdown rather than claiming the dashboard is public. Read per request. |
-| `ReloadAuth()` | `auth.go` | Re-reads `auth.yaml` and publishes the policy. Called by `ReloadCache`. Keeps the last known good policy on failure — never degrades to "public". |
+| `Dashboard.ReloadAuth()` | `dashboard.go` | Re-reads this dashboard's `auth.yaml` and publishes the policy. Called by `Reload`. Keeps the last known good policy on failure — never degrades to "public". |
 | `ValidateAuthConfig(cfg) error` | `auth.go` | Rejects missing credentials, unresolved `{{HOMEPAGE_VAR_*}}` placeholders, bad `maxAge`, unknown providers, and public mail domains without `allowPublicDomains`. |
 | `AuthRequiredEnv() bool` | `auth.go` | `HOMEPAGE_AUTH_REQUIRED=true` — fail closed even when no allowlist is configured. |
 | `ResetAuthState()` / `ResetCache()` | `auth.go`, `cache.go` | Test helpers. Production never calls them. |
-| `SetCurrentHash(h)` | `config.go` | Stores hash in `atomic.Value`. Called by the watcher. |
+| `Dashboard.Reload()` | `dashboard.go` | Re-reads every file in this dashboard's directory and swaps its snapshot + hash atomically. Called at startup and by the watcher. |
 
 ### Env Var Substitution
 
@@ -38,16 +52,25 @@
 
 ### YAML Loaders
 
+Every loader is a **method on a `Dashboard`**, and reads that dashboard's own
+directory. There is deliberately no package-level `config.LoadServices()` any
+more: with several dashboards in one process, a caller that could read "the"
+config could read another dashboard's. Handlers get theirs from the request
+context (`config.DashboardFrom(ctx)`).
+
+A loader answers from the dashboard's in-memory snapshot when there is one and
+from disk otherwise; a missing file is "nothing configured", not an error.
+
 | Function | File | Description |
 |----------|------|-------------|
-| `LoadSettings() (*Settings, error)` | `settings.go` | Loads `settings.yaml`. Applies defaults (theme=dark, color=slate, lang=en, target=_blank, headerStyle=underlined). |
-| `LoadServices() ([]ServiceGroup, error)` | `services.go` | Loads `services.yaml`. Special structure: list of `{groupName: [{svcName: {svcFields}}]}`. |
-| `LoadBookmarks() ([]BookmarkGroup, error)` | `bookmarks.go` | Loads `bookmarks.yaml`. Same nested structure as services. |
-| `LoadWidgets() ([]InfoWidget, error)` | `widgets.go` | Loads `widgets.yaml`. List of `{widgetType: {options}}`. |
-| `LoadDocker() (map[string]DockerConfig, error)` | `docker.go` | Loads `docker.yaml` with Docker server configs. |
-| `LoadKubernetes() (map[string]KubernetesConfig, error)` | `kubernetes.go` | Loads `kubernetes.yaml`. |
-| `LoadProxmox() (map[string]ProxmoxConfig, error)` | `proxmox.go` | Loads `proxmox.yaml` with URL, token, secret. |
-| `LoadScriptsFile() (*ScriptsFile, error)` | `scripts.go` | Loads `scripts.yaml` with script definitions. |
+| `Dashboard.Settings() (*Settings, error)` | `dashboard.go` / `settings.go` | Loads `settings.yaml`. Applies defaults (theme=dark, color=slate, lang=en, target=_blank, headerStyle=underlined). |
+| `Dashboard.Services() ([]ServiceGroup, error)` | `dashboard.go` / `services.go` | Loads `services.yaml`. Special structure: list of `{groupName: [{svcName: {svcFields}}]}`. |
+| `Dashboard.Bookmarks() ([]BookmarkGroup, error)` | `dashboard.go` / `bookmarks.go` | Loads `bookmarks.yaml`. Same nested structure as services. |
+| `Dashboard.Widgets() ([]InfoWidget, error)` | `dashboard.go` / `widgets.go` | Loads `widgets.yaml`. List of `{widgetType: {options}}`. |
+| `Dashboard.Docker() (map[string]DockerConfig, error)` | `dashboard.go` / `docker.go` | Loads `docker.yaml` with Docker server configs. |
+| `Dashboard.Kubernetes() (map[string]KubernetesConfig, error)` | `dashboard.go` / `kubernetes.go` | Loads `kubernetes.yaml`. |
+| `Dashboard.Proxmox() (map[string]ProxmoxConfig, error)` | `dashboard.go` / `proxmox.go` | Loads `proxmox.yaml` with URL, token, secret. |
+| `Dashboard.ScriptsFile() (*ScriptsFile, error)` | `dashboard.go` / `scripts.go` | Loads `scripts.yaml` with script definitions. |
 
 ### Credential Sanitization
 
@@ -63,8 +86,9 @@
 
 | Function/Method | File | Description |
 |-----------------|------|-------------|
-| `NewWatcher(logger) (*Watcher, error)` | `watcher.go` | Creates fsnotify watcher over the config directory. |
-| `(*Watcher) Start(onChange func()) error` | `watcher.go` | Starts event loop goroutine. Reacts to Write/Create/Remove/Rename on `.yaml`, `.yml`, `.css`, `.js`. |
+| `NewWatcher(logger) (*Watcher, error)` | `watcher.go` | Creates the fsnotify watcher. |
+| `(*Watcher) Start(onChange func(*Dashboard)) error` | `watcher.go` | Watches one directory per dashboard plus `dashboards/` itself (fsnotify is not recursive). Reacts to Write/Create/Remove/Rename on `.yaml`, `.yml`, `.css`, `.js`, reloads the dashboard the file belongs to, and calls `onChange` with it. A directory appearing under `dashboards/` triggers a rescan, so a new dashboard is served without a restart. |
+| `(*Watcher) Sync()` | `watcher.go` | Brings the watch set in line with the current registry. Called after every rescan. |
 | `(*Watcher) Stop() error` | `watcher.go` | Stops the watcher. |
 
 ---
@@ -255,8 +279,8 @@ the gate without a dependency cycle.
 |----------|------|-------------|
 | `IsAllowed(cfg, email) bool` | `allowlist.go` | Matches an address against `emails` + `domains`. Case-insensitive, whitespace-trimmed. Deliberately does **not** fold Gmail dots. Called on every request, not just at login. |
 | `NormalizeEmail(email) string` | `allowlist.go` | Lower-case + trim. |
-| `IssueSession(w, cfg, email) error` | `session.go` | Writes the signed cookie: `HttpOnly`, `SameSite=Lax`, `Secure` by default. |
-| `ReadSession(r, cfg) (*Session, error)` | `session.go` | Verifies signature (`hmac.Equal`, constant time) and expiry. |
+| `IssueSession(w, d, cfg, email) error` | `session.go` | Writes the signed cookie for dashboard `d`: its name, its `Path`, its signing key. `HttpOnly`, `SameSite=Lax`, `Secure` by default. |
+| `ReadSession(r, d, cfg) (*Session, error)` | `session.go` | Reads dashboard `d`'s cookie and verifies signature (`hmac.Equal`, constant time) and expiry. |
 | `MaybeRenewSession(w, cfg, s)` | `session.go` | Re-issues the cookie once less than half its life remains (sliding renewal). |
 | `ClearSession(w, cfg)` | `session.go` | Expires the cookie (logout). |
 | `AuthorizationURL(cfg, state, nonce) string` | `google.go` | Builds the Google redirect. `scope=openid email`, `prompt=select_account`, optional `hd=`. |
@@ -273,7 +297,7 @@ the gate without a dependency cycle.
 | `Logging(logger) func(http.Handler) http.Handler` | `logging.go` | Logs method, path, duration, remote addr. Debug level. |
 | `CORS(next) http.Handler` | `cors.go` | Strict same-origin CORS. Only for `/api/*`. Preflight OPTIONS → 204. Allowed headers: Content-Type, X-Homepage-Confirm, HX-Request, HX-Current-URL. |
 | `HostValidation(port, logger) func(http.Handler) http.Handler` | `host_validation.go` | Validates Host header. Defaults: localhost:PORT, 127.0.0.1:PORT, [::1]:PORT. `*` = allow all. Port-aware. Case-insensitive. |
-| `Auth(logger) func(http.Handler) http.Handler` | `auth.go` | The email-allowlist gate. Reads `config.Auth()` **per request** (never captured in the closure) so the policy is hot-reloadable. No-op when no allowlist is configured. |
+| `Auth(logger) func(http.Handler) http.Handler` | `auth.go` | The email-allowlist gate. Reads the policy of the dashboard on the request context **per request** (never captured in the closure) so it is hot-reloadable. Refuses with 503 when the edge could not resolve a dashboard. No-op when no allowlist is configured. |
 | `SessionEmail(ctx) string` | `auth.go` | Returns the authenticated address attached to the request, `""` when auth is off. The hook for per-item permissions later. |
 | `PeerIsTrusted(r) bool` | `helpers.go` | Whether the immediate peer is in `TRUSTED_PROXIES`. Gates the `trustedHeader` provider. |
 | `ClientIPFromRequest(r) string` | `helpers.go` | Real client IP. Honours `X-Forwarded-For` / `X-Real-IP` only when the peer is a trusted proxy. |

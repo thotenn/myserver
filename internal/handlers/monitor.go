@@ -16,9 +16,13 @@ import (
 // Performs an HTTP HEAD request (fallback to GET) and reports status +
 // latency. Renders HTML for HTMX requests, JSON otherwise.
 func SiteMonitor(w http.ResponseWriter, r *http.Request) {
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
 	targetURL := r.URL.Query().Get("url")
 	if targetURL != "" {
-		if !isAllowedSiteMonitor(targetURL) {
+		if !isAllowedSiteMonitor(d, targetURL) {
 			writeJSONError(w, "url not allowed", http.StatusForbidden)
 			return
 		}
@@ -26,7 +30,7 @@ func SiteMonitor(w http.ResponseWriter, r *http.Request) {
 		group := r.URL.Query().Get("groupName")
 		service := r.URL.Query().Get("serviceName")
 		if group != "" && service != "" {
-			targetURL = resolveSiteMonitorURL(group, service)
+			targetURL = resolveSiteMonitorURL(d, group, service)
 		}
 	}
 
@@ -82,8 +86,8 @@ func SiteMonitor(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func resolveSiteMonitorURL(group, service string) string {
-	groups, err := config.LoadServices()
+func resolveSiteMonitorURL(d *config.Dashboard, group, service string) string {
+	groups, err := d.Services()
 	if err != nil {
 		return ""
 	}
@@ -101,9 +105,10 @@ func resolveSiteMonitorURL(group, service string) string {
 }
 
 // isAllowedSiteMonitor reports whether the given URL matches a siteMonitor
-// field in any configured service.
-func isAllowedSiteMonitor(target string) bool {
-	groups, err := config.LoadServices()
+// field in a service of THIS dashboard. Same reason as isAllowedPingHost:
+// unscoped, `?url=` reaches whatever any other dashboard listed.
+func isAllowedSiteMonitor(d *config.Dashboard, target string) bool {
+	groups, err := d.Services()
 	if err != nil {
 		return false
 	}

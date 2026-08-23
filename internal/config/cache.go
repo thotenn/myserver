@@ -1,10 +1,12 @@
 package config
 
-import "sync/atomic"
-
-// cachedConfig holds all parsed configuration in memory.
-// It is updated atomically by the watcher so handlers always see a
-// consistent snapshot without hitting disk on every request.
+// cachedConfig holds one dashboard's parsed configuration in memory.
+// A Dashboard swaps it atomically so handlers always see a consistent
+// snapshot of THEIR dashboard without hitting disk on every request.
+//
+// There is deliberately no process-wide instance of this. There used to be,
+// and it is what made /api/services able to answer one dashboard's request
+// with another's services.
 type cachedConfig struct {
 	Services   []ServiceGroup
 	Bookmarks  []BookmarkGroup
@@ -15,45 +17,4 @@ type cachedConfig struct {
 	Proxmox    map[string]ProxmoxConfig
 	Scripts    *ScriptsFile
 	Hash       string
-}
-
-var configCache atomic.Value // *cachedConfig
-
-// GetCachedConfig returns the current in-memory config, or nil if the cache
-// has not been initialised yet.
-func GetCachedConfig() *cachedConfig {
-	if c, ok := configCache.Load().(*cachedConfig); ok {
-		return c
-	}
-	return nil
-}
-
-// ResetCache empties the in-memory snapshot (for testing) so that loaders
-// read from disk again. Without it, a test that reloads the cache would keep
-// answering later tests from its own fixture directory.
-func ResetCache() {
-	configCache.Store((*cachedConfig)(nil))
-}
-
-// ReloadCache loads all configuration files from disk and atomically swaps
-// the in-memory cache. It should be called at startup and whenever the file
-// watcher detects a change.
-func ReloadCache() {
-	c := &cachedConfig{}
-	c.Services, _ = loadServices()
-	c.Bookmarks, _ = loadBookmarks()
-	c.Widgets, _ = loadWidgets()
-	c.Settings, _ = loadSettings()
-	c.Docker, _ = loadDocker()
-	c.Kubernetes, _ = loadKubernetes()
-	c.Proxmox, _ = loadProxmox()
-	c.Scripts, _ = loadScriptsFile()
-	c.Hash, _ = configHash()
-	configCache.Store(c)
-	SetCurrentHash(c.Hash)
-	// auth.yaml deliberately does NOT live in cachedConfig: the pattern above
-	// discards load errors, and an auth policy that silently becomes nil would
-	// publish the dashboard. ReloadAuth keeps its own atomic value with
-	// last-known-good semantics instead.
-	ReloadAuth()
 }

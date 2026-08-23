@@ -15,28 +15,70 @@ import (
 	"go.uber.org/zap"
 )
 
-// withTempConfig sets up an isolated config dir with the supplied YAML
-// fixtures and returns a cleanup function.
-func withTempConfig(t *testing.T, files map[string]string) string {
+// withTempConfig sets up an isolated root config dir with the supplied YAML
+// fixtures, publishes a registry over it, and returns the root dashboard.
+func withTempConfig(t *testing.T, files map[string]string) *config.Dashboard {
+	t.Helper()
+	return withDashboards(t, files, nil).Root()
+}
+
+// withDashboards is withTempConfig plus a client dashboard per entry in
+// clients, each with its own config directory under config/dashboards/.
+func withDashboards(t *testing.T, root map[string]string, clients map[string]map[string]string) *config.DashboardSet {
 	t.Helper()
 	dir := t.TempDir()
+	writeFixtures(t, dir, root)
+	for slug, files := range clients {
+		writeFixtures(t, filepath.Join(dir, config.DashboardsSubdir, slug), files)
+	}
+
+	t.Setenv("HOMEPAGE_CONFIG_DIR", dir)
+	config.SetConfigDir(dir)
+	config.ResetBasePath()
+	t.Cleanup(func() {
+		config.ResetConfigDir()
+		config.ResetBasePath()
+		config.SetDashboards(nil)
+		clearMergedServicesCache()
+	})
+
+	set, errs := config.InitDashboards()
+	require.Empty(t, errs)
+	for _, d := range set.All() {
+		d.Reload()
+	}
+	clearMergedServicesCache()
+	return set
+}
+
+func writeFixtures(t *testing.T, dir string, files map[string]string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
 	for name, body := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644))
 	}
-	prev := os.Getenv("HOMEPAGE_CONFIG_DIR")
-	t.Setenv("HOMEPAGE_CONFIG_DIR", dir)
-	config.SetConfigDir(dir)
-	t.Cleanup(func() {
-		config.ResetConfigDir()
-		if prev != "" {
-			_ = os.Setenv("HOMEPAGE_CONFIG_DIR", prev)
-		}
+}
+
+// clearMergedServicesCache empties the per-dashboard response cache so one
+// test's fixtures cannot answer another's request.
+func clearMergedServicesCache() {
+	mergedServicesCache.Range(func(k, _ any) bool {
+		mergedServicesCache.Delete(k)
+		return true
 	})
-	return dir
+}
+
+// request builds a request already carrying the dashboard, which is what
+// middleware.Dispatch does in front of every router. A handler called without
+// one fails closed, so tests that call handlers directly have to supply it.
+func request(d *config.Dashboard, method, path string) *http.Request {
+	r := httptest.NewRequest(method, path, nil)
+	r.Host = "localhost:3000"
+	return r.WithContext(config.WithDashboard(r.Context(), d))
 }
 
 func TestServices_StripsBasicAuthAndCredentials(t *testing.T) {
-	withTempConfig(t, map[string]string{
+	d := withTempConfig(t, map[string]string{
 		"services.yaml": `
 - Apps:
     - Plex:
@@ -51,9 +93,8 @@ func TestServices_StripsBasicAuthAndCredentials(t *testing.T) {
 `,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/services", nil)
 	rec := httptest.NewRecorder()
-	Services(rec, req)
+	Services(rec, request(d, http.MethodGet, "/api/services"))
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.NotContains(t, body, "hunter2", "basic-auth password leaked")
@@ -64,7 +105,7 @@ func TestServices_StripsBasicAuthAndCredentials(t *testing.T) {
 }
 
 func TestWidgets_SanitizesNestedCredentials(t *testing.T) {
-	withTempConfig(t, map[string]string{
+	d := withTempConfig(t, map[string]string{
 		"widgets.yaml": `
 - openweathermap:
     label: Home
@@ -82,9 +123,8 @@ func TestWidgets_SanitizesNestedCredentials(t *testing.T) {
 `,
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/widgets", nil)
 	rec := httptest.NewRecorder()
-	Widgets(rec, req)
+	Widgets(rec, request(d, http.MethodGet, "/api/widgets"))
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.NotContains(t, body, "should-be-redacted")
@@ -94,42 +134,39 @@ func TestWidgets_SanitizesNestedCredentials(t *testing.T) {
 	assert.Contains(t, body, "metric")
 }
 
-func TestHash_ReflectsCurrentHash(t *testing.T) {
-	withTempConfig(t, map[string]string{
+func TestHash_ReflectsTheDashboardsOwnHash(t *testing.T) {
+	d := withTempConfig(t, map[string]string{
 		"settings.yaml": `title: foo`,
 	})
-	// Seed CurrentHash via ConfigHash
-	h, err := config.ConfigHash()
-	require.NoError(t, err)
-	config.SetCurrentHash(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/hash", nil)
 	rec := httptest.NewRecorder()
-	Hash(rec, req)
+	Hash(rec, request(d, http.MethodGet, "/api/hash"))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var payload map[string]string
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	assert.Equal(t, h, payload["hash"])
+	assert.Equal(t, d.Hash(), payload["hash"])
+	assert.NotEmpty(t, payload["hash"])
 }
 
 func TestRunScript_DisabledReturns404(t *testing.T) {
 	t.Setenv("HOMEPAGE_SCRIPTS_ENABLED", "false")
 	ScriptManager = nil
+	d := withTempConfig(t, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/scripts/whatever", nil)
 	rec := httptest.NewRecorder()
-	RunScript(rec, req)
+	RunScript(rec, request(d, http.MethodPost, "/api/scripts/whatever"))
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestConfigFile_PathTraversalRejected(t *testing.T) {
+	withTempConfig(t, nil)
+	router := newTestRouter()
 	// path is bound to {path} chi var; we use a chi router to populate it.
 	for _, p := range []string{"secrets.yaml", "../etc/passwd", "settings.yaml"} {
 		req := httptest.NewRequest(http.MethodGet, "/api/config/"+p, nil)
+		req.Host = "localhost:3000"
 		rec := httptest.NewRecorder()
-		// Manually invoke the handler with chi context
-		router := newTestRouter()
 		router.ServeHTTP(rec, req)
 		// All non-whitelisted paths should fail with 404, not 200 with body.
 		if p != "custom.css" && p != "custom.js" {
@@ -153,7 +190,7 @@ func newTestRouter() http.Handler {
 // right by luck — every response must be identical and fully sanitized, no
 // matter how many requests raced or which one populated the cache.
 func TestServices_ConcurrentRequestsDoNotMutateCache(t *testing.T) {
-	withTempConfig(t, map[string]string{
+	d := withTempConfig(t, map[string]string{
 		"services.yaml": `
 - Apps:
     - Grafana:
@@ -172,7 +209,6 @@ func TestServices_ConcurrentRequestsDoNotMutateCache(t *testing.T) {
           apiKey: another-secret
 `,
 	})
-	config.ReloadCache()
 
 	const workers = 16
 	bodies := make([]string, workers)
@@ -182,7 +218,7 @@ func TestServices_ConcurrentRequestsDoNotMutateCache(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			rec := httptest.NewRecorder()
-			Services(rec, httptest.NewRequest(http.MethodGet, "/api/services", nil))
+			Services(rec, request(d, http.MethodGet, "/api/services"))
 			bodies[i] = rec.Body.String()
 		}(i)
 	}
@@ -198,8 +234,9 @@ func TestServices_ConcurrentRequestsDoNotMutateCache(t *testing.T) {
 
 	// The cached value must itself be sanitized and must survive being
 	// served repeatedly without being edited.
-	cached, ok := mergedServicesCache.Load().([]config.ServiceGroup)
-	require.True(t, ok, "cache not populated")
+	entry, found := mergedServicesCache.Load(d.Slug)
+	require.True(t, found, "cache not populated")
+	cached := entry.(merged).groups
 	require.NotEmpty(t, cached)
 	for _, g := range cached {
 		for _, s := range g.Services {

@@ -8,7 +8,11 @@ import (
 )
 
 func Widgets(w http.ResponseWriter, r *http.Request) {
-	widgets, err := config.LoadWidgets()
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
+	widgets, err := d.Widgets()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

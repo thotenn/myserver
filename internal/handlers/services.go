@@ -3,17 +3,30 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"sync/atomic"
+	"sync"
 
 	"github.com/thotenn/myserver/internal/config"
 	"github.com/thotenn/myserver/internal/discovery"
 )
 
-var (
-	dockerDiscoverers   []*discovery.DockerDiscoverer
-	mergedServicesCache atomic.Value // []config.ServiceGroup
-	lastMergedHash      atomic.Value // string
-)
+// dockerDiscoverers are built from the ROOT dashboard's docker.yaml and talk
+// to the host's daemon. They are never merged into a client dashboard's
+// services: a container running on my host is not part of a client's list.
+var dockerDiscoverers []*discovery.DockerDiscoverer
+
+// merged is one dashboard's already-sanitized service list, cached against the
+// config hash it was built from.
+type merged struct {
+	hash   string
+	groups []config.ServiceGroup
+}
+
+// mergedServicesCache is keyed by dashboard slug, and that key is the whole
+// point. It used to be a single process-wide value guarded by a single
+// process-wide hash, which meant GET /acme/api/services answered with whatever
+// the previous request — for any dashboard — had left in it. A data leak
+// between clients with no error to notice.
+var mergedServicesCache sync.Map // slug -> merged
 
 // SetDockerDiscoverers sets the Docker discoverers used by the services handler.
 func SetDockerDiscoverers(discoverers []*discovery.DockerDiscoverer) {
@@ -23,43 +36,50 @@ func SetDockerDiscoverers(discoverers []*discovery.DockerDiscoverer) {
 // Services handles GET /api/services. It returns the merged service list
 // after stripping credentials and basic-auth URLs from each entry.
 func Services(w http.ResponseWriter, r *http.Request) {
-	currentHash := config.CurrentHash()
+	d, ok := dashboardOf(w, r)
+	if !ok {
+		return
+	}
+	currentHash := d.Hash()
 
-	// Return cached result if hash hasn't changed. What is cached is already
-	// sanitized, so it is written out as-is — never post-processed in place.
-	if cached, ok := mergedServicesCache.Load().([]config.ServiceGroup); ok {
-		if lastHash, _ := lastMergedHash.Load().(string); lastHash == currentHash && currentHash != "" {
-			writeServices(w, cached)
+	// Return cached result if this dashboard's hash hasn't changed. What is
+	// cached is already sanitized, so it is written out as-is — never
+	// post-processed in place.
+	if entry, found := mergedServicesCache.Load(d.Slug); found {
+		if m, isMerged := entry.(merged); isMerged && m.hash == currentHash && currentHash != "" {
+			writeServices(w, m.groups)
 			return
 		}
 	}
 
-	services, err := config.LoadServices()
+	services, err := d.Services()
 	if err != nil {
 		http.Error(w, "failed to load services", http.StatusInternalServerError)
 		return
 	}
 
-	// Discover Docker services
+	// Discover Docker services. Only for the root dashboard: the containers
+	// found here run on the host, and folding them into a client's list would
+	// publish the host's inventory to that client.
 	var discovered []config.ServiceGroup
-	for _, d := range dockerDiscoverers {
-		groups, err := d.DiscoverServices(r.Context())
-		if err != nil {
-			continue
+	if d.IsRoot() {
+		for _, disc := range dockerDiscoverers {
+			groups, err := disc.DiscoverServices(r.Context())
+			if err != nil {
+				continue
+			}
+			discovered = append(discovered, groups...)
 		}
-		discovered = append(discovered, groups...)
 	}
 
-	settings, _ := config.LoadSettings()
+	settings, _ := d.Settings()
 	var layout map[string]config.LayoutGroup
 	if settings != nil {
 		layout = settings.Layout
 	}
-	merged := discovery.MergeServices(services, discovered, layout)
-	sanitized := sanitizeServiceGroups(merged)
+	sanitized := sanitizeServiceGroups(discovery.MergeServices(services, discovered, layout))
 
-	mergedServicesCache.Store(sanitized)
-	lastMergedHash.Store(currentHash)
+	mergedServicesCache.Store(d.Slug, merged{hash: currentHash, groups: sanitized})
 
 	writeServices(w, sanitized)
 }

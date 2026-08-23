@@ -20,22 +20,8 @@ type Bookmark struct {
 	Icon string `yaml:"icon,omitempty" json:"icon,omitempty"`
 }
 
-// LoadBookmarks loads and parses bookmarks.yaml.
-
-// LoadBookmarks returns the cached config if available, otherwise loads from disk.
-func LoadBookmarks() ([]BookmarkGroup, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Bookmarks, nil
-	}
-	return loadBookmarks()
-}
-func loadBookmarks() ([]BookmarkGroup, error) {
-	if err := CheckAndCopyConfig("bookmarks.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("bookmarks.yaml")
+func loadBookmarks(dir string) ([]BookmarkGroup, error) {
+	data, err := readConfigFile(dir, "bookmarks.yaml")
 	if err != nil {
 		return nil, err
 	}

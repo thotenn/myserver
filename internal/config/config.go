@@ -9,37 +9,32 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 )
 
 //go:embed skeleton
 var skeletonFS embed.FS
 
+// skeletonFiles are the config files a brand-new install is seeded with. They
+// are copied once, at startup, into the ROOT config directory only: a client
+// dashboard's directory is written by the operator, and seeding it would drop
+// the demo dashboard into somebody else's.
+var skeletonFiles = []string{
+	"services.yaml", "bookmarks.yaml", "widgets.yaml", "settings.yaml",
+	"docker.yaml", "kubernetes.yaml", "proxmox.yaml", "scripts.yaml",
+}
+
 var (
 	configDir string
 	mu        sync.RWMutex
 	resolved  bool
-
-	// liveHash holds the current config hash, updated by the file watcher.
-	// Use CurrentHash() / SetCurrentHash() instead of reading a local copy
-	// that may freeze after hot-reload.
-	liveHash atomic.Value // string
 )
 
-// CurrentHash returns the most recently computed config hash.
-// It is thread-safe and updated whenever the watcher detects a change.
-func CurrentHash() string {
-	v, _ := liveHash.Load().(string)
-	return v
-}
-
-// SetCurrentHash stores the current config hash (called by the watcher).
-func SetCurrentHash(h string) {
-	liveHash.Store(h)
-}
-
-// ConfigDir returns the configuration directory path.
-// It reads from HOMEPAGE_CONFIG_DIR env var, defaulting to /app/config.
+// ConfigDir returns the ROOT configuration directory path. It reads from
+// HOMEPAGE_CONFIG_DIR, defaulting to /app/config.
+//
+// It is not "the config dir a handler should read": that is
+// DashboardFrom(ctx).Dir. This one only tells the registry and the watcher
+// where the tree starts.
 func ConfigDir() string {
 	mu.RLock()
 	if resolved {
@@ -62,7 +57,7 @@ func ConfigDir() string {
 	return configDir
 }
 
-// SetConfigDir overrides the config directory (for testing).
+// SetConfigDir overrides the root config directory (for testing).
 func SetConfigDir(dir string) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -78,7 +73,7 @@ func ResetConfigDir() {
 	resolved = false
 }
 
-// EnsureConfigDir creates the config directory if it doesn't exist.
+// EnsureConfigDir creates the root configuration directory if it doesn't exist.
 func EnsureConfigDir() error {
 	dir := ConfigDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -87,59 +82,58 @@ func EnsureConfigDir() error {
 	return nil
 }
 
-// CheckAndCopyConfig ensures a config file exists by copying from skeleton.
-// If the file exists, it does nothing. If not, it copies the skeleton version.
-func CheckAndCopyConfig(filename string) error {
-	dir := ConfigDir()
-	destPath := filepath.Join(dir, filename)
+// EnsureSkeleton seeds a config directory with the shipped example files,
+// skipping any that already exist.
+//
+// It runs once at startup rather than from inside the loaders, which is what
+// makes it possible for a directory to legitimately hold only some of the
+// config files: a client dashboard with a services.yaml and nothing else is a
+// complete dashboard, not a half-seeded one.
+func EnsureSkeleton(dir string) error {
+	for _, name := range skeletonFiles {
+		destPath := filepath.Join(dir, name)
+		if _, err := os.Stat(destPath); err == nil {
+			continue // file already exists
+		}
 
-	if _, err := os.Stat(destPath); err == nil {
-		return nil // file already exists
+		data, err := fs.ReadFile(skeletonFS, filepath.Join("skeleton", name))
+		if err != nil {
+			continue // no skeleton for this file, that's ok
+		}
+
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return fmt.Errorf("creating parent dir for %s: %w", destPath, err)
+		}
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			return fmt.Errorf("writing skeleton %s: %w", destPath, err)
+		}
 	}
-
-	skeletonData, err := fs.ReadFile(skeletonFS, filepath.Join("skeleton", filename))
-	if err != nil {
-		// No skeleton for this file, that's ok
-		return nil
-	}
-
-	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-		return fmt.Errorf("creating parent dir for %s: %w", destPath, err)
-	}
-
-	if err := os.WriteFile(destPath, skeletonData, 0644); err != nil {
-		return fmt.Errorf("writing skeleton %s: %w", destPath, err)
-	}
-
 	return nil
 }
 
-// ReadConfigFile reads a config file with environment variable substitution.
-func ReadConfigFile(filename string) ([]byte, error) {
-	path := filepath.Join(ConfigDir(), filename)
-	raw, err := os.ReadFile(path)
+// readConfigFile reads a config file from a dashboard's directory with
+// environment variable substitution.
+//
+// A missing file is not an error: it returns nil data, and every loader reads
+// that as "nothing configured". That is what lets a dashboard directory hold
+// only the files its operator wrote.
+func readConfigFile(dir, filename string) ([]byte, error) {
+	raw, err := os.ReadFile(filepath.Join(dir, filename))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("reading config %s: %w", filename, err)
 	}
-	substituted := SubstituteEnvVars(string(raw))
-	return []byte(substituted), nil
+	return []byte(SubstituteEnvVars(string(raw))), nil
 }
 
-// ConfigHash computes a SHA256 hash of all config files for cache busting.
-// Includes YAMLs and custom.css/custom.js so changes to any of them force a
-// frontend reload via the /api/hash endpoint.
-
-// ConfigHash returns the cached config if available, otherwise loads from disk.
-func ConfigHash() (string, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Hash, nil
-	}
-	return configHash()
-}
-func configHash() (string, error) {
+// configHash computes a SHA256 hash of a dashboard's config files for cache
+// busting. It covers the YAMLs plus custom.css/custom.js, so a change to any
+// of them forces that dashboard's frontend to reload via /api/hash — and only
+// that dashboard's.
+func configHash(dir string) (string, error) {
 	h := sha256.New()
-	dir := ConfigDir()
 
 	configFiles := []string{
 		"services.yaml", "bookmarks.yaml", "widgets.yaml",

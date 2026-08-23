@@ -58,22 +58,8 @@ type WidgetConfig struct {
 	Options map[string]interface{} `yaml:",inline" json:"-"`
 }
 
-// LoadServices loads and parses services.yaml.
-
-// LoadServices returns the cached config if available, otherwise loads from disk.
-func LoadServices() ([]ServiceGroup, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Services, nil
-	}
-	return loadServices()
-}
-func loadServices() ([]ServiceGroup, error) {
-	if err := CheckAndCopyConfig("services.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("services.yaml")
+func loadServices(dir string) ([]ServiceGroup, error) {
+	data, err := readConfigFile(dir, "services.yaml")
 	if err != nil {
 		return nil, err
 	}

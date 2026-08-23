@@ -296,26 +296,34 @@ session, providers), `internal/middleware/auth.go` (the gate),
 
 ---
 
-## 17. Base Path (opt-in)
+## 17. Several dashboards, and the base path (opt-in)
 
-Optional. `HOMEPAGE_BASE_PATH=/team` serves the whole dashboard under a URL
-prefix instead of at the root of its host. Unset — the default — the app is the
-one it was before the option existed, byte for byte.
+Optional, and off unless you ask for it. One MyServer serves the dashboard in
+`HOMEPAGE_CONFIG_DIR` plus one per sub-directory of `<config dir>/dashboards/`,
+each at `/<directory name>`; `HOMEPAGE_BASE_PATH=/team` moves all of them under a
+prefix. With neither in use — the default — the app is the one it was before
+either option existed, byte for byte.
 
 | Aspect | Behaviour |
 |---|---|
-| **Validation** | Must start with `/`, must not end with one, segments limited to `A-Za-z0-9._~-`. An invalid value is fatal at startup, never half-applied |
-| **How it works** | One middleware strips the prefix at the edge and publishes it on the request context. Route patterns, `http.StripPrefix("/static/")` and the auth gate's public-path allowlist keep matching today's paths, so a prefixed deployment cannot drift from an unprefixed one |
+| **A dashboard is a directory** | `config/dashboards/partners/` is served at `/partners`. Created or removed while running, with no restart. Names are one path segment of `A-Za-z0-9._~-`; `api`, `auth` and `static` are reserved and skipped with a log line |
+| **Validation of the base path** | Must start with `/`, must not end with one, same segment charset. An invalid value is fatal at startup, never half-applied |
+| **How it works** | One edge handler resolves the URL to a dashboard, strips that dashboard's prefix, and publishes the dashboard on the request context. Route patterns, `http.StripPrefix("/static/")` and the auth gate's public-path allowlist keep matching the same paths, so a prefixed or nested deployment cannot drift from a plain one |
+| **Isolation** | Each dashboard reads only its own directory. Config snapshots, hashes and response caches are per dashboard, so `/api/services` can never answer one dashboard with another's data |
+| **A nested dashboard is read-only** | Its router registers the page, `/static`, `/auth/*` and `/api/{services,bookmarks,widgets,hash,config/{path},ping,siteMonitor,healthcheck}`. The widget proxy, scripts, Docker, Proxmox, the info-widget data endpoints, `/api/reload` and `/api/validate` are **not registered** for it — they answer 404 |
 | **Emitted URLs** | Every URL the templates produce goes through a builder in `internal/templates/urls.go` that adds the prefix. The browser gets the prefix once, as `<meta name="base-path">`, which `app.js` reads for its `/api/hash` poll |
-| **Cookies** | The session cookie's `Path` becomes the prefix. The `__Host-` OAuth state cookie cannot be (that prefix requires `Path=/`), so its NAME carries the base path instead |
-| **`next` and redirects** | Inside a handler every path is relative to the dashboard; the prefix is added when a redirect is emitted. A caller-supplied `next` is therefore re-rooted under this dashboard and cannot lead out of it |
-| **Deployment** | The reverse proxy must pass the prefix through unstripped, and the healthcheck moves to `/<base>/api/healthcheck` |
+| **Cookies** | The session cookie's `Path` is the dashboard's prefix and its default NAME carries the directory name, since dashboards share a hostname. Its signing key is per dashboard. The `__Host-` OAuth state cookie must stay at `Path=/`, so its name carries the prefix instead |
+| **One login callback** | Every dashboard may point `google.redirectURL` at the root dashboard's `/auth/google/callback`, so the identity provider needs a single authorised redirect URI however many dashboards there are. The dashboard the login belongs to travels inside the **signed** OAuth state, and that is what selects the allowlist it is checked against |
+| **`next` and redirects** | Inside a handler every path is relative to its dashboard; the prefix is added when a redirect is emitted. A caller-supplied `next` is therefore re-rooted under that dashboard and cannot lead out of it |
+| **Hot-reload** | Per dashboard: a change to one reloads only that one, and only its browsers |
+| **Deployment** | The reverse proxy must pass the path through unstripped, and with a base path the healthcheck moves to `/<base>/api/healthcheck` |
 
-**Implementation:** `internal/config/basepath.go`,
-`internal/middleware/basepath.go`, `internal/templates/urls.go`,
-`internal/auth/session.go`, `web/static/js/app.js`.
+**Implementation:** `internal/config/{dashboard,dashboards,basepath,watcher}.go`,
+`internal/middleware/dispatch.go`, `internal/handlers/api.go`,
+`internal/templates/urls.go`, `internal/auth/{session,state}.go`,
+`web/static/js/app.js`.
 
-**Docs:** [`configuration.md#serving-under-a-base-path`](./configuration.md#serving-under-a-base-path).
+**Docs:** [`configuration.md#serving-several-dashboards`](./configuration.md#serving-several-dashboards).
 
 ---
 

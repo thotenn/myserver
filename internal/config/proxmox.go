@@ -13,22 +13,8 @@ type ProxmoxConfig struct {
 	Secret string `yaml:"secret"`
 }
 
-// LoadProxmox loads and parses proxmox.yaml.
-
-// LoadProxmox returns the cached config if available, otherwise loads from disk.
-func LoadProxmox() (map[string]ProxmoxConfig, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Proxmox, nil
-	}
-	return loadProxmox()
-}
-func loadProxmox() (map[string]ProxmoxConfig, error) {
-	if err := CheckAndCopyConfig("proxmox.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("proxmox.yaml")
+func loadProxmox(dir string) (map[string]ProxmoxConfig, error) {
+	data, err := readConfigFile(dir, "proxmox.yaml")
 	if err != nil {
 		return nil, err
 	}

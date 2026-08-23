@@ -33,8 +33,11 @@ func SecurityHeaders(next http.Handler) http.Handler {
 			"connect-src 'self';"
 		// Only tightened when a login exists to protect: with authentication
 		// off the header must stay byte-for-byte what it was before the
-		// feature was added.
-		if config.Auth().Required {
+		// feature was added. The policy is per dashboard, so on a host serving
+		// a public dashboard next to a gated one this is decided per request.
+		// A request the edge could not resolve gets the tighter header.
+		d := config.DashboardFrom(r.Context())
+		if d == nil || d.Auth().Required {
 			csp += " form-action 'self';"
 		}
 		w.Header().Set("Content-Security-Policy", csp)

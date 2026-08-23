@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -45,32 +44,39 @@ const authTestServices = `
 // does rather than a handler in isolation.
 func newAuthedRouter(t *testing.T, withAuth bool) http.Handler {
 	t.Helper()
+	newAuthedDashboard(t, withAuth)
+	return API(zap.NewNop(), 3000)
+}
+
+// newAuthedDashboard builds the root dashboard the router above serves. Each
+// test gets a fresh one, which is also what keeps a lockdown left over from
+// another case from being read here as "auth.yaml just disappeared": the
+// policy belongs to the dashboard now, not to the package.
+func newAuthedDashboard(t *testing.T, withAuth bool) *config.Dashboard {
+	t.Helper()
 	files := map[string]string{"services.yaml": authTestServices}
 	if withAuth {
 		files[config.AuthFile] = testAuthYAML
 	}
-	withTempConfig(t, files)
-	// Start from a blank policy: a lockdown left over from another test would
-	// otherwise be read as "auth.yaml just disappeared".
-	config.ResetAuthState()
-	config.ReloadCache()
-	t.Cleanup(func() {
-		config.ResetAuthState()
-		config.ResetCache()
-		// Clearing the hash also disables the handlers' merged-services
-		// cache, which is keyed by it.
-		config.SetCurrentHash("")
-	})
-	return API(zap.NewNop(), 3000)
+	return withTempConfig(t, files)
+}
+
+// rootDashboard is the dashboard the current registry serves from the root.
+func rootDashboard(t *testing.T) *config.Dashboard {
+	t.Helper()
+	set := config.Dashboards()
+	require.NotNil(t, set, "no dashboard registry published")
+	return set.Root()
 }
 
 // sessionCookie mints a valid session for the given email.
 func sessionCookie(t *testing.T, email string) *http.Cookie {
 	t.Helper()
-	cfg := config.Auth().Config
+	d := rootDashboard(t)
+	cfg := d.Auth().Config
 	require.NotNil(t, cfg, "auth must be configured")
 	rec := httptest.NewRecorder()
-	require.NoError(t, auth.IssueSession(context.Background(), rec, cfg, email))
+	require.NoError(t, auth.IssueSession(rec, d, cfg, email))
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
 	return cookies[0]
@@ -372,9 +378,9 @@ func TestErrorKeyOnlyAllowsKnownKeys(t *testing.T) {
 // way the fsnotify watcher does in production.
 func rewriteAuthFile(t *testing.T, content string) {
 	t.Helper()
-	path := filepath.Join(config.ConfigDir(), config.AuthFile)
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	config.ReloadCache()
+	d := config.Dashboards().Root()
+	require.NoError(t, os.WriteFile(filepath.Join(d.Dir, config.AuthFile), []byte(content), 0o600))
+	d.Reload()
 }
 
 // locationPath returns the path of a redirect, dropping the query.
@@ -392,7 +398,8 @@ func locationPath(rec *httptest.ResponseRecorder) string {
 func sessionCookiesIn(rec *httptest.ResponseRecorder) []*http.Cookie {
 	var out []*http.Cookie
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == config.Auth().Config.CookieName() && c.Value != "" {
+		d := config.Dashboards().Root()
+		if c.Name == d.CookieName(d.Auth().Config) && c.Value != "" {
 			out = append(out, c)
 		}
 	}
@@ -429,9 +436,10 @@ func TestAuth_LockdownServesNothingButHealthcheck(t *testing.T) {
 	router := newAuthedRouter(t, true)
 
 	// The config directory goes away, as when a bind mount fails.
-	require.NoError(t, os.Remove(filepath.Join(config.ConfigDir(), config.AuthFile)))
-	config.ReloadCache()
-	require.True(t, config.Auth().Lockdown, "precondition: the policy should be in lockdown")
+	d := rootDashboard(t)
+	require.NoError(t, os.Remove(filepath.Join(d.Dir, config.AuthFile)))
+	d.Reload()
+	require.True(t, d.Auth().Lockdown, "precondition: the policy should be in lockdown")
 
 	for _, path := range []string{"/", "/api/services", "/api/widgets"} {
 		req := newRequest(http.MethodGet, path)
@@ -461,17 +469,8 @@ allowlist:
     - person@example.com
 `,
 	})
-	config.ResetAuthState()
-	config.ReloadCache()
-	t.Cleanup(func() {
-		config.ResetAuthState()
-		config.ResetCache()
-		// Clearing the hash also disables the handlers' merged-services
-		// cache, which is keyed by it.
-		config.SetCurrentHash("")
-	})
 	router := API(zap.NewNop(), 3000)
-	require.True(t, config.Auth().Required)
+	require.True(t, rootDashboard(t).Auth().Required)
 
 	// RemoteAddr is 192.0.2.1 by default in httptest — not a trusted proxy,
 	// so the header is just something the caller made up.
@@ -507,20 +506,13 @@ allowlist:
 // and therefore carries the absolute config-dir path — handlers must not
 // describe the container's filesystem layout.
 func TestValidate_DoesNotLeakFilesystemPaths(t *testing.T) {
-	dir := withTempConfig(t, map[string]string{
+	// withTempConfig populates the snapshot exactly as a running process does
+	// — Reload discards the load error and stores nil. A validation endpoint
+	// reading from the snapshot would report this broken file as valid, which
+	// is what makes this fixture resemble production.
+	d := withTempConfig(t, map[string]string{
 		// Invalid YAML: the loader fails and the error names the file.
 		"services.yaml": "- Group:\n    - Svc:\n        href: [unclosed\n",
-	})
-	config.ResetAuthState()
-	// Populate the cache exactly as a running process does — ReloadCache
-	// discards the load error and stores nil. A validation endpoint reading
-	// from the cache would report this broken file as valid, so this call is
-	// what makes the test resemble production.
-	config.ReloadCache()
-	t.Cleanup(func() {
-		config.ResetAuthState()
-		config.ResetCache()
-		config.SetCurrentHash("")
 	})
 
 	req := newRequest(http.MethodGet, "/api/validate")
@@ -530,7 +522,7 @@ func TestValidate_DoesNotLeakFilesystemPaths(t *testing.T) {
 	body := rec.Body.String()
 	require.Equal(t, http.StatusBadRequest, rec.Code, "broken YAML should fail validation")
 
-	assert.NotContains(t, body, dir, "the absolute config path leaked: %s", body)
+	assert.NotContains(t, body, d.Dir, "the absolute config path leaked: %s", body)
 	assert.NotContains(t, body, "/app/config", "container layout leaked")
 	// The useful part survives: the operator still learns which file is broken.
 	assert.Contains(t, body, "services.yaml")
@@ -540,19 +532,13 @@ func TestValidate_DoesNotLeakFilesystemPaths(t *testing.T) {
 // `valid: true` for a file it had failed to parse, because ReloadCache stores
 // nil and drops the error.
 func TestValidate_ReportsBrokenFileEvenWithWarmCache(t *testing.T) {
-	withTempConfig(t, map[string]string{
+	d := withTempConfig(t, map[string]string{
 		"services.yaml": "- Group:\n    - Svc:\n        href: [unclosed\n",
 	})
-	config.ResetAuthState()
-	config.ReloadCache() // the cache now holds nil services and no error
-	t.Cleanup(func() {
-		config.ResetAuthState()
-		config.ResetCache()
-		config.SetCurrentHash("")
-	})
 
-	require.Nil(t, config.GetCachedConfig().Services,
-		"precondition: the cache swallowed the parse error")
+	services, err := d.Services()
+	require.NoError(t, err, "precondition: the snapshot swallowed the parse error")
+	require.Nil(t, services)
 
 	req := newRequest(http.MethodGet, "/api/validate")
 	rec := httptest.NewRecorder()
@@ -564,16 +550,13 @@ func TestValidate_ReportsBrokenFileEvenWithWarmCache(t *testing.T) {
 }
 
 func TestScrubConfigPaths(t *testing.T) {
-	config.SetConfigDir("/app/config")
-	t.Cleanup(config.ResetConfigDir)
-
 	cases := map[string]string{
 		"reading config services.yaml: open /app/config/services.yaml: no such file": "reading config services.yaml: open services.yaml: no such file",
 		"open /var/secrets/other.yaml: permission denied":                            "open other.yaml: permission denied",
 		"yaml: line 12: did not find expected key":                                   "yaml: line 12: did not find expected key",
 	}
 	for in, want := range cases {
-		if got := scrubConfigPaths(in); got != want {
+		if got := scrubConfigPaths("/app/config", in); got != want {
 			t.Errorf("scrubConfigPaths(%q)\n  = %q\n want %q", in, got, want)
 		}
 	}

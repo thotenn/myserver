@@ -23,22 +23,8 @@ type TLSConfig struct {
 	Key  string `yaml:"key,omitempty"`
 }
 
-// LoadDocker loads and parses docker.yaml.
-
-// LoadDocker returns the cached config if available, otherwise loads from disk.
-func LoadDocker() (map[string]DockerConfig, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Docker, nil
-	}
-	return loadDocker()
-}
-func loadDocker() (map[string]DockerConfig, error) {
-	if err := CheckAndCopyConfig("docker.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("docker.yaml")
+func loadDocker(dir string) (map[string]DockerConfig, error) {
+	data, err := readConfigFile(dir, "docker.yaml")
 	if err != nil {
 		return nil, err
 	}

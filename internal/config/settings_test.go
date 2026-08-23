@@ -11,8 +11,6 @@ import (
 
 func TestLoadSettings(t *testing.T) {
 	tmpDir := t.TempDir()
-	SetConfigDir(tmpDir)
-	defer ResetConfigDir()
 
 	yamlContent := `title: Mi Dashboard
 theme: dark
@@ -35,7 +33,7 @@ quicklaunch:
 	err := os.WriteFile(filepath.Join(tmpDir, "settings.yaml"), []byte(yamlContent), 0644)
 	require.NoError(t, err)
 
-	settings, err := LoadSettings()
+	settings, err := loadSettings(tmpDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Mi Dashboard", settings.Title)
@@ -56,13 +54,11 @@ quicklaunch:
 
 func TestLoadSettingsDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
-	SetConfigDir(tmpDir)
-	defer ResetConfigDir()
 
 	err := os.WriteFile(filepath.Join(tmpDir, "settings.yaml"), []byte("title: Test"), 0644)
 	require.NoError(t, err)
 
-	settings, err := LoadSettings()
+	settings, err := loadSettings(tmpDir)
 	require.NoError(t, err)
 
 	assert.Equal(t, "dark", settings.Theme)

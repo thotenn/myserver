@@ -255,7 +255,7 @@ make down    # stop
   `/api/services` strips basic-auth and widget credentials;
   `/api/widgets` sanitizes recursively (nested `clientSecret`, …);
   `/api/scripts` → 404 when disabled; `/api/hash` reflects
-  `config.CurrentHash()`; `/api/config` honors the whitelist.
+  the requesting dashboard's config hash; `/api/config` honors the whitelist and reads that dashboard's own directory.
 
 ### Run tests
 

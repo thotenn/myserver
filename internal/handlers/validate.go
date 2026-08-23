@@ -27,9 +27,13 @@ import (
 // environment probe. Its state is reported in the logs instead.
 func Validate(logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		d, ok := dashboardOf(w, r)
+		if !ok {
+			return
+		}
 		// Read from disk, not from the cache: the cache swallows loader
 		// errors, so cached answers would report a broken file as valid.
-		failures := config.ValidateFromDisk()
+		failures := config.ValidateFromDisk(d.Dir)
 
 		files := make([]string, 0, len(failures))
 		for file := range failures {
@@ -42,7 +46,7 @@ func Validate(logger *zap.Logger) http.HandlerFunc {
 			err := failures[file]
 			logger.Warn("config validation failed",
 				zap.String("file", file), zap.Error(err))
-			errors = append(errors, file+": "+scrubConfigPaths(err.Error()))
+			errors = append(errors, file+": "+scrubConfigPaths(d.Dir, err.Error()))
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -67,8 +71,7 @@ func Validate(logger *zap.Logger) http.HandlerFunc {
 // It replaces the config directory with nothing ("/app/config/services.yaml"
 // becomes "services.yaml") and drops any remaining absolute path, so the
 // response never describes where the container keeps its files.
-func scrubConfigPaths(msg string) string {
-	dir := config.ConfigDir()
+func scrubConfigPaths(dir, msg string) string {
 	if dir != "" {
 		msg = strings.ReplaceAll(msg, dir+string(filepath.Separator), "")
 		msg = strings.ReplaceAll(msg, dir, "")

@@ -38,7 +38,14 @@
 ┌─────────────────────────┴───────────────────────────────────┐
 │                    MyServer (Go)                             │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │  chi.Router                                         │   │
+│  │  middleware.Dispatch — THE EDGE                     │   │
+│  │  URL → dashboard, strip its prefix, put it on ctx   │   │
+│  │        /            → root      config/             │   │
+│  │        /acme/*      → client    config/dashboards/  │   │
+│  │        anything else → 404                          │   │
+│  ├──────────────────┬──────────────────────────────────┤   │
+│  │  ROOT router     │  CLIENT router (read-only)       │   │
+│  │  the whole app   │  a strict subset                 │   │
 │  │  ├── Global MW: Recovery → Logging → SecurityHdr    │   │
 │  │  │               → Auth gate → Compress             │   │
 │  │  ├── API Routes (/api/*): CORS → HostValidation     │   │
@@ -46,8 +53,11 @@
 │  │  ├── Static Files (/static/*)        [public]       │   │
 │  │  ├── Auth (/auth/*)                  [public]       │   │
 │  │  ├── Dashboard (GET /)                              │   │
-│  │  └── Config Files (GET /api/config/*)               │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  │  ├── Config Files (GET /api/config/*)               │   │
+│  │  └── proxy, scripts,     │  NOT REGISTERED for a    │   │
+│  │      docker, proxmox,    │  client dashboard        │   │
+│  │      reload, validate    │                          │   │
+│  └──────────────────┴──────────────────────────────────┘   │
 │   The Auth gate is a no-op while config/auth.yaml lists     │
 │   nobody; with an allowlist it guards everything except     │
 │   /static/*, /auth/* and /api/healthcheck.                  │
@@ -56,10 +66,10 @@
 │  │                       │                               │  │
 │  │  ┌──────────────┐   │   ┌──────────────────────┐   │  │
 │  │  │  Handlers    │◄──┘   │  Config (YAML + Env)  │   │  │
-│  │  │  · Dashboard │       │  · LoadSettings()      │   │  │
-│  │  │  · Proxy     │◄──────│  · LoadServices()      │   │  │
-│  │  │  · Docker    │       │  · LoadBookmarks()     │   │  │
-│  │  │  · Scripts   │       │  · LoadWidgets()       │   │  │
+│  │  │  · Dashboard │       │  · d.Settings()        │   │  │
+│  │  │  · Proxy     │◄──────│  · d.Services()        │   │  │
+│  │  │  · Docker    │       │  · d.Bookmarks()       │   │  │
+│  │  │  · Scripts   │       │  · d.Widgets()         │   │  │
 │  │  │  · Monitor   │       │  · SubstituteEnvVars() │   │  │
 │  │  │  · Ping      │       └──────────────────────┘   │  │
 │  │  │  · Widgets   │                                    │  │
@@ -108,12 +118,13 @@
 ```
 1. Browser → GET /
 2. handlers.Dashboard()
-3.   ├─ config.LoadSettings()      → settings.yaml
-4.   ├─ config.LoadServices()      → services.yaml
-5.   ├─ config.LoadBookmarks()     → bookmarks.yaml
-6.   ├─ config.LoadWidgets()       → widgets.yaml
-7.   └─ config.CurrentHash()      → atomic hash
-8. templates.Index(data PageData)
+3.   ├─ d := config.DashboardFrom(ctx)   ← the edge resolved it from the URL
+4.   ├─ d.Settings()              → settings.yaml    (of THIS dashboard)
+5.   ├─ d.Services()              → services.yaml
+6.   ├─ d.Bookmarks()             → bookmarks.yaml
+7.   ├─ d.Widgets()               → widgets.yaml
+8.   └─ d.Hash()                  → its own config hash
+9. templates.Index(data PageData)
 9.   ├─ templates.Layout(data)    → head, header, footer
 10.  ├─ BookmarkGroup()           → bookmarks section
 11.  └─ ServiceGroup()            → for each service group
@@ -191,12 +202,12 @@
 
 ```
 1.  Browser GET / (no session cookie)
-2.  middleware.Auth() reads config.Auth() — per request, never a closure
+2.  middleware.Auth() reads d.Auth() — per request, per dashboard, never a closure
 3.    ├─ Lockdown?      → 503 everywhere except /api/healthcheck
 4.    ├─ Not required?  → next handler, untouched (the public default)
 5.    ├─ Public path?   → next handler (/static/*, /auth/*, healthcheck)
 6.    └─ Otherwise → authenticate()
-7.         ├─ provider google        → auth.ReadSession() (HMAC cookie)
+7.         ├─ provider google        → auth.ReadSession(r, d, cfg) (HMAC cookie)
 8.         └─ provider trustedHeader → auth.EmailFromTrustedHeader()
 9.                                     (only if PeerIsTrusted)
 10.  No identity → challenge()
@@ -225,7 +236,7 @@
 
 ### A. In-Memory Config Cache
 
-Config loaders (`LoadSettings`, `LoadServices`, etc.) cache results in `atomic.Value`. `ReloadCache()` invalidates all caches when the watcher detects a config change. Handlers call public `LoadXxx()` which returns cached data, while `loadXxx()` (private) reads from disk. This avoids reloading YAMLs on every request while maintaining hot-reload correctness.
+Each `Dashboard` holds its parsed configuration in one `atomic.Value`, swapped wholesale by `Reload()` when the watcher sees a change in **that dashboard's** directory. Handlers call methods on the dashboard the edge put on their request context (`d.Services()`, …), which answer from that snapshot; the private `loadXxx(dir)` functions read from disk. This avoids reloading YAMLs on every request while keeping hot-reload correct — and, because the snapshot and the hash belong to a dashboard rather than to the process, one dashboard's edit cannot be served to another or make another's browser reload.
 
 ### B. Content Negotiation via HX-Request
 
@@ -251,7 +262,7 @@ Instead of separate routes `/api/X` and `/htmx/X`, a single endpoint decides the
 
 The dashboard ships public and expects an auth layer in front (reverse proxy, Cloudflare Access, Authelia…). Since the email-allowlist feature it can also guard itself: a `config/auth.yaml` listing at least one address makes Google sign-in mandatory. There is no user database and no local passwords — identity always comes from an external provider (Google, or a header asserted by a trusted proxy).
 
-The decisive property is what happens when that config cannot be read. `AuthConfig` lives in its **own** `atomic.Value`, not inside `cachedConfig`, because `ReloadCache` discards loader errors (`c.Settings, _ = loadSettings()`) — a policy that silently became `nil` would publish the dashboard. Instead: a broken file keeps the last known good allowlist, and a file that vanishes while sign-in is active locks everything down with 503. The only thing that opens the dashboard is a well-formed file with an empty allowlist.
+The decisive property is what happens when that config cannot be read. Each dashboard's `AuthConfig` lives in its **own** `atomic.Value`, not inside its config snapshot, because `Reload` discards loader errors (`c.Settings, _ = loadSettings(dir)`) — a policy that silently became `nil` would publish the dashboard. Instead: a broken file keeps the last known good allowlist, and a file that vanishes while sign-in is active locks everything down with 503. The only thing that opens the dashboard is a well-formed file with an empty allowlist.
 
 See [`authentication.md`](./authentication.md).
 
@@ -309,6 +320,7 @@ cmd/myserver
     │       ├── kubernetes.go     (stub)
     │       └── merger.go         (merge config + discovery)
     └── internal/middleware
+            ├── dispatch.go       (the edge: URL -> dashboard)
             ├── recovery.go
             ├── logging.go
             ├── cors.go
@@ -319,6 +331,8 @@ cmd/myserver
 ```
 
 **Rule:** `internal/config` does not depend on any other internal package. It is the foundation for all others.
+
+**Rule:** nothing in `internal/config` is a package-level accessor for "the" configuration. Services, bookmarks, widgets, settings, the auth policy and the config hash are all methods on a `Dashboard`, and a handler reaches its own through `config.DashboardFrom(ctx)`. One process serves several people's dashboards from one hostname, so a caller able to read "the" config is a caller able to read someone else's — the parameter is what makes that a compile error instead of a review item. `internal/handlers/tenants_test.go` is the contract.
 
 **Corollary:** `internal/auth` depends only on `internal/config`, so `internal/middleware` can import it for the gate without a cycle. The trusted-proxy check stays in `middleware` (only it can see the peer) and is passed into `auth` as a parameter.
 
@@ -348,7 +362,7 @@ cmd/myserver
 ### Adding a New Setting Field
 
 1. Edit `internal/config/settings.go` → add field to `Settings` struct
-2. Apply default if needed in `LoadSettings()`
+2. Apply default if needed in `loadSettings(dir)`
 3. Use in templates or handlers
 
 ---

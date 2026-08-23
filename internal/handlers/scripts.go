@@ -17,9 +17,15 @@ import (
 // It is initialized in main.go if scripts are enabled.
 var ScriptManager *scripts.Manager
 
-// scriptsEnabled checks if the scripts feature is enabled.
-func scriptsEnabled() bool {
-	return config.ScriptsEnabled() && ScriptManager != nil
+// scriptsEnabled reports whether the dashboard THIS request is being served
+// for may run scripts.
+//
+// Only the root dashboard can, and only when the process opted in. The routes
+// are not registered for a client dashboard either; this is the defence in
+// depth behind that, because what is on the other side is a shell on the host.
+func scriptsEnabled(r *http.Request) bool {
+	d := config.DashboardFrom(r.Context())
+	return d != nil && d.ScriptsEnabled() && ScriptManager != nil
 }
 
 // ConfirmHeader is the HTTP header the frontend must send for scripts
@@ -30,7 +36,7 @@ const ConfirmHeader = "X-Homepage-Confirm"
 
 // ListScripts returns all registered scripts and their status.
 func ListScripts(w http.ResponseWriter, r *http.Request) {
-	if !scriptsEnabled() {
+	if !scriptsEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -41,7 +47,7 @@ func ListScripts(w http.ResponseWriter, r *http.Request) {
 
 // GetScriptStatus returns the status of a specific script.
 func GetScriptStatus(w http.ResponseWriter, r *http.Request) {
-	if !scriptsEnabled() {
+	if !scriptsEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -59,7 +65,7 @@ func GetScriptStatus(w http.ResponseWriter, r *http.Request) {
 
 // RunScript executes a script and returns the result.
 func RunScript(w http.ResponseWriter, r *http.Request) {
-	if !scriptsEnabled() {
+	if !scriptsEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -98,7 +104,7 @@ func RunScript(w http.ResponseWriter, r *http.Request) {
 	// the dashboard card updates in-place. Otherwise fall back to JSON for
 	// API consumers.
 	if isHTMXRequest(r) {
-		svc := findServiceByScript(name)
+		svc := findServiceByScript(r, name)
 		if svc == nil {
 			svc = &config.Service{Name: cfg.Name, Script: name, Description: cfg.Description, Icon: cfg.Icon, RequireConfirm: cfg.RequireConfirm}
 		}
@@ -115,8 +121,12 @@ func RunScript(w http.ResponseWriter, r *http.Request) {
 // findServiceByScript looks up the Service entry in services.yaml for a
 // given script name. Returns nil if no service references it (in which
 // case the caller should fabricate a minimal Service).
-func findServiceByScript(scriptName string) *config.Service {
-	groups, err := config.LoadServices()
+func findServiceByScript(r *http.Request, scriptName string) *config.Service {
+	d := config.DashboardFrom(r.Context())
+	if d == nil {
+		return nil
+	}
+	groups, err := d.Services()
 	if err != nil {
 		return nil
 	}
@@ -133,7 +143,11 @@ func findServiceByScript(scriptName string) *config.Service {
 
 // preferredLang reads the language from the Settings. Falls back to "en".
 func preferredLang(r *http.Request) string {
-	s, err := config.LoadSettings()
+	d := config.DashboardFrom(r.Context())
+	if d == nil {
+		return "en"
+	}
+	s, err := d.Settings()
 	if err != nil || s == nil || s.Language == "" {
 		return "en"
 	}
@@ -142,7 +156,7 @@ func preferredLang(r *http.Request) string {
 
 // StreamScript executes a script with SSE output streaming.
 func StreamScript(w http.ResponseWriter, r *http.Request) {
-	if !scriptsEnabled() {
+	if !scriptsEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}

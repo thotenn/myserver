@@ -8,10 +8,25 @@ Handlers do **content negotiation** via the `HX-Request` header:
 - `HX-Request: true` → partial HTML (Templ, for `innerHTML` swaps).
 - otherwise → JSON (for API clients).
 
-Every path below is written from the root of the host. With
-`HOMEPAGE_BASE_PATH` set they all move under that prefix — `/team/api/services`
-— and the unprefixed form answers `404`. See
-[`configuration.md#serving-under-a-base-path`](./configuration.md#serving-under-a-base-path).
+Every path below is written from the root of the host, which is where the
+**root dashboard** — the one in `HOMEPAGE_CONFIG_DIR` — is served.
+
+Two things move them:
+
+- A **nested dashboard** (`config/dashboards/<name>/`) is served at `/<name>`,
+  so its endpoints are `/<name>/api/services` and so on. It answers on a
+  **subset** of this reference: the page, `/static`, `/auth/*`, and
+  `/api/{services,bookmarks,widgets,hash,config/{path},ping,siteMonitor,healthcheck}`.
+  Everything else — the widget proxy, the scripts endpoints, Docker, Proxmox,
+  the info-widget data endpoints, `/api/reload`, `/api/validate` — is **not
+  registered** for it and answers `404`. Each dashboard answers from its own
+  config directory.
+- `HOMEPAGE_BASE_PATH` moves all of them under one more prefix
+  (`/team/api/services`, `/team/partners/api/services`), and the unprefixed form
+  answers `404`.
+
+See
+[`configuration.md#serving-several-dashboards`](./configuration.md#serving-several-dashboards).
 
 ---
 

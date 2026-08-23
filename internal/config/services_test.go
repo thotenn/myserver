@@ -12,8 +12,6 @@ import (
 
 func TestLoadServices(t *testing.T) {
 	tmpDir := t.TempDir()
-	SetConfigDir(tmpDir)
-	defer ResetConfigDir()
 
 	yamlContent := `- Infrastructure:
     - Grafana:
@@ -41,7 +39,7 @@ func TestLoadServices(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, "services.yaml"), []byte(yamlContent), 0644)
 	require.NoError(t, err)
 
-	groups, err := LoadServices()
+	groups, err := loadServices(tmpDir)
 	require.NoError(t, err)
 	require.Len(t, groups, 2)
 

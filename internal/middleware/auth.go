@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -55,10 +56,23 @@ var publicExact = map[string]bool{
 func Auth(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The dashboard comes from the edge, which resolved it from the
+			// URL. Without one there is no policy to enforce and no safe
+			// default: refusing is the only answer that cannot serve one
+			// tenant's content under another's rules.
+			d := config.DashboardFrom(r.Context())
+			if d == nil {
+				lockdown(w, r, logger, config.AuthState{
+					Lockdown: true,
+					Err:      errors.New("no dashboard on the request context"),
+				})
+				return
+			}
+
 			// Read the policy per request, never captured in this closure:
 			// that is what makes the allowlist hot-reloadable, so removing an
 			// address from the YAML evicts that person on their next request.
-			state := config.Auth()
+			state := d.Auth()
 
 			if state.Lockdown {
 				lockdown(w, r, logger, state)
@@ -81,7 +95,7 @@ func Auth(logger *zap.Logger) func(http.Handler) http.Handler {
 				return
 			}
 
-			email, ok := authenticate(w, r, state.Config)
+			email, ok := authenticate(w, r, d, state.Config)
 			if !ok {
 				challenge(w, r)
 				return
@@ -105,7 +119,7 @@ func Auth(logger *zap.Logger) func(http.Handler) http.Handler {
 }
 
 // authenticate resolves the caller's identity for the configured provider.
-func authenticate(w http.ResponseWriter, r *http.Request, cfg *config.AuthConfig) (string, bool) {
+func authenticate(w http.ResponseWriter, r *http.Request, d *config.Dashboard, cfg *config.AuthConfig) (string, bool) {
 	if cfg.ProviderName() == config.ProviderTrustedHeader {
 		email, err := auth.EmailFromTrustedHeader(r, cfg, PeerIsTrusted(r))
 		if err != nil {
@@ -114,11 +128,11 @@ func authenticate(w http.ResponseWriter, r *http.Request, cfg *config.AuthConfig
 		return email, true
 	}
 
-	session, err := auth.ReadSession(r, cfg)
+	session, err := auth.ReadSession(r, d, cfg)
 	if err != nil {
 		return "", false
 	}
-	auth.MaybeRenewSession(r.Context(), w, cfg, session)
+	auth.MaybeRenewSession(w, d, cfg, session)
 	return session.Email, true
 }
 

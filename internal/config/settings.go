@@ -47,22 +47,8 @@ type ScriptSettings struct {
 	ScriptDirs     []string `yaml:"scriptDirs,omitempty" json:"scriptDirs,omitempty"`
 }
 
-// LoadSettings loads and parses settings.yaml.
-
-// LoadSettings returns the cached config if available, otherwise loads from disk.
-func LoadSettings() (*Settings, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Settings, nil
-	}
-	return loadSettings()
-}
-func loadSettings() (*Settings, error) {
-	if err := CheckAndCopyConfig("settings.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("settings.yaml")
+func loadSettings(dir string) (*Settings, error) {
+	data, err := readConfigFile(dir, "settings.yaml")
 	if err != nil {
 		return nil, err
 	}

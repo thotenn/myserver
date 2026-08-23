@@ -24,22 +24,8 @@ type ScriptEntry struct {
 	LogOutput       bool              `yaml:"logOutput,omitempty"`
 }
 
-// LoadScriptsFile loads and parses scripts.yaml.
-
-// LoadScriptsFile returns the cached config if available, otherwise loads from disk.
-func LoadScriptsFile() (*ScriptsFile, error) {
-	if c := GetCachedConfig(); c != nil {
-
-		return c.Scripts, nil
-	}
-	return loadScriptsFile()
-}
-func loadScriptsFile() (*ScriptsFile, error) {
-	if err := CheckAndCopyConfig("scripts.yaml"); err != nil {
-		return nil, err
-	}
-
-	data, err := ReadConfigFile("scripts.yaml")
+func loadScriptsFile(dir string) (*ScriptsFile, error) {
+	data, err := readConfigFile(dir, "scripts.yaml")
 	if err != nil {
 		return nil, err
 	}

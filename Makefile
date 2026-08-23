@@ -3,12 +3,15 @@
 BINARY=myserver
 DOCKER_IMAGE=myserver
 GO=go
-TEMPL=$(HOME)/go/bin/templ
+# Resolved from PATH; override if your templ lives elsewhere (TEMPL=/path/to/templ).
+TEMPL ?= templ
 
-# Tailwind CSS standalone CLI (no Node.js). Install via:
-#   curl -sLo /usr/local/bin/tailwindcss \
-#     https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
-#   chmod +x /usr/local/bin/tailwindcss
+# Tailwind CSS standalone CLI (no Node.js). v3 ONLY: v4 dropped @apply inside
+# @layer base, which web/tailwind/input.css relies on. Install via (swap the
+# asset for your platform: macos-arm64, macos-x64, linux-x64, linux-arm64):
+#   curl -sLo ~/.local/bin/tailwindcss \
+#     https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64
+#   chmod +x ~/.local/bin/tailwindcss
 TAILWIND ?= tailwindcss
 
 build: templ tailwind
@@ -35,8 +38,12 @@ templ:
 tailwind:
 	$(TAILWIND) -i web/tailwind/input.css -o web/static/css/main.css -c tailwind.config.js --minify
 
+# Local development. The binary defaults to the container path /app/config,
+# which is not writable outside Docker, so point it at the repo's config/.
+HOMEPAGE_CONFIG_DIR ?= ./config
+
 dev: ## Hot reload with air
-	air
+	HOMEPAGE_CONFIG_DIR=$(HOMEPAGE_CONFIG_DIR) air
 
 clean:
 	rm -f $(BINARY) cover.out

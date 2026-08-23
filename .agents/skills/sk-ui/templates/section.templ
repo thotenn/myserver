@@ -1,0 +1,36 @@
+package templates
+
+import "github.com/thotenn/myserver/internal/config"
+
+// ExampleSection is a titled block wrapping a responsive grid — the shape every
+// group of cards uses.
+//
+// The column count travels to the stylesheet as the `--service-cols` custom
+// property, NEVER as an inline `grid-template-columns`: an inline style beats
+// every media query, which is how the desktop column count once reached phones
+// and squeezed the card text out of the card. `.service-grid` in
+// `web/tailwind/input.css` applies the property from `lg` up and caps the count
+// below it (1 / 2 / 3 columns).
+templ ExampleSection(group config.ServiceGroup, layout *config.LayoutGroup, lang string) {
+	<section class="mb-6" data-group={ group.Name }>
+		<h2 class="text-sm font-semibold uppercase tracking-wider text-theme-600 dark:text-theme-400 mb-3">
+			{ group.Name }
+		</h2>
+		<div class="service-grid" style={ gridColumns(layoutColumns(layout)) }>
+			for _, svc := range group.Services {
+				@ExampleCard(svc, group.Name, lang)
+			}
+		</div>
+	</section>
+}
+
+// ExampleSectionEmpty shows the same frame with an empty state, for a section
+// whose contents can legitimately be zero.
+templ ExampleSectionEmpty(title string, lang string) {
+	<section class="mb-6">
+		<h2 class="text-sm font-semibold uppercase tracking-wider text-theme-600 dark:text-theme-400 mb-3">
+			{ title }
+		</h2>
+		@ExampleEmptyState(T(lang, "widgets.error"))
+	</section>
+}

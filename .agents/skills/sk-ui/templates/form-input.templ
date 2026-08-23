@@ -1,0 +1,86 @@
+package templates
+
+// Form controls on the theme tokens. The dashboard has few of them, so keep
+// these consistent rather than inventing new class strings.
+//
+// Accessibility is not decoration here: the search box is a combobox and needs
+// its ARIA wiring, or keyboard users get a dropdown they cannot perceive.
+
+// ExampleTextInput — a full-width input with a submit affordance.
+templ ExampleTextInput(id string, placeholder string) {
+	<div class="flex-1 max-w-md">
+		<form id={ id + "-form" } class="relative" action="/search" method="GET" autocomplete="off">
+			<input
+				id={ id + "-input" }
+				type="text"
+				name="q"
+				placeholder={ placeholder }
+				role="combobox"
+				aria-autocomplete="list"
+				aria-controls={ id + "-results" }
+				aria-expanded="false"
+				class="w-full px-4 py-2 pr-10 rounded-lg bg-theme-100 dark:bg-theme-800 border border-theme-200 dark:border-theme-700 text-sm text-theme-900 dark:text-theme-100 placeholder-theme-400 dark:placeholder-theme-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+			/>
+			<button
+				type="submit"
+				class="absolute right-2 top-1/2 -translate-y-1/2 text-theme-400 hover:text-theme-600 dark:hover:text-theme-300"
+				aria-label="Search"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+				</svg>
+			</button>
+			// The dropdown is populated by app.js with createElement/textContent,
+			// never innerHTML — service names are user data.
+			<div
+				id={ id + "-results" }
+				role="listbox"
+				class="absolute w-full mt-1 bg-white dark:bg-theme-800 border border-theme-200 dark:border-theme-700 rounded-lg shadow-lg z-50 hidden max-h-80 overflow-y-auto"
+			></div>
+		</form>
+	</div>
+}
+
+// ExampleButton — `btn-primary` for a normal action, `btn-execute` for the
+// full-width action inside a card.
+templ ExampleButton(label string) {
+	<button class="btn-primary">{ label }</button>
+}
+
+// ExampleDangerousAction — a destructive action.
+//
+// `hx-confirm` lives in the BROWSER and is a convenience, not a control. The
+// server requires the `X-Homepage-Confirm: yes` header and answers 428 without
+// it, which is why both are sent. Never ship a destructive action guarded only
+// by hx-confirm.
+templ ExampleDangerousAction(name string, endpoint string, targetID string, lang string) {
+	<div class="flex gap-2 items-center">
+		<button
+			class="btn-execute flex-1"
+			hx-post={ endpoint }
+			hx-target={ "#" + targetID }
+			hx-swap="innerHTML"
+			hx-headers='{"X-Homepage-Confirm": "yes"}'
+			hx-confirm={ T(lang, "scripts.confirm") + " " + name + "?" }
+			hx-indicator={ "#" + targetID + "-spinner" }
+		>
+			{ T(lang, "scripts.execute") }
+		</button>
+		@ExampleSpinner(targetID + "-spinner")
+	</div>
+}
+
+// ExampleIconButton — an icon-only control. `title` and `aria-label` are not
+// optional when there is no visible text.
+templ ExampleIconButton(id string, label string) {
+	<button
+		id={ id }
+		class="p-2 rounded-lg text-theme-500 dark:text-theme-400 hover:bg-theme-100 dark:hover:bg-theme-800 transition-colors"
+		title={ label }
+		aria-label={ label }
+	>
+		<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2"></path>
+		</svg>
+	</button>
+}

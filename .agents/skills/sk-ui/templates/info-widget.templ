@@ -1,0 +1,57 @@
+package templates
+
+// A top-bar widget is TWO components: a shell rendered with the page, and a
+// fragment the shell fetches. See guides/htmx.md.
+//
+// Wiring a new one takes four edits:
+//   1. this shell + fragment, here;
+//   2. a URL builder in `urls.go` — never concatenate, options come from YAML;
+//   3. a handler and a route in `internal/handlers`;
+//   4. a branch in `header.templ` matching `w.Type`, so `widgets.yaml` can
+//      switch it on.
+
+// ExampleWidgetShell renders with the page and fetches its own data.
+//
+// Pick the interval from how fast the data actually moves — resource bars 5s,
+// weather 300s. The visibility guard is mandatory on a repeating trigger.
+templ ExampleWidgetShell(opts map[string]interface{}) {
+	<div
+		class="flex items-center gap-2 px-3 py-2 bg-theme-100/50 dark:bg-theme-800/50 rounded-lg text-xs text-theme-700 dark:text-theme-200"
+		hx-get={ exampleWidgetURL(opts) }
+		hx-trigger="load, every 60s [document.visibilityState === 'visible']"
+		hx-swap="innerHTML"
+		hx-target="this"
+	>
+		<span class="text-[10px] text-theme-400">…</span>
+	</div>
+}
+
+// ExampleWidgetHTML is the swap target: NO wrapper of its own, the shell is
+// already in the DOM.
+templ ExampleWidgetHTML(label string, value string) {
+	<span class="inline-flex items-center gap-1 min-w-0">
+		<span class="widget-label">{ label }</span>
+		<span class="widget-value wrap-anywhere">{ value }</span>
+	</span>
+}
+
+// ExampleWidgetError is what the handler renders when the upstream is down. A
+// dead upstream degrades one widget, never the page.
+templ ExampleWidgetError(lang string) {
+	<span class="text-[10px] text-theme-400 italic">{ T(lang, "widgets.error") }</span>
+}
+
+// A widget that needs the BROWSER rather than the server — a clock, anything
+// using the visitor's locale or timezone — takes no HTMX at all. Pass the
+// server-side values as `data-*` attributes and read them in `app.js`: Templ
+// does not interpolate inside <script>, and the CSP forbids inline handlers.
+templ ExampleClientWidget(lang string) {
+	<div
+		id="example-widget"
+		class="text-sm text-theme-600 dark:text-theme-400 font-mono"
+		data-locale={ datetimeLocale(lang) }
+		data-empty-label={ T(lang, "widgets.loading") }
+	>
+		<span id="example-widget-display"></span>
+	</div>
+}

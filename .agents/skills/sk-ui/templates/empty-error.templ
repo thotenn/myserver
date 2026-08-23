@@ -1,0 +1,33 @@
+package templates
+
+// Empty, loading and error states.
+//
+// Every panel that can fail needs all three, and they are RENDERED FRAGMENTS,
+// not HTTP error bodies: a dead upstream must degrade one card, never the page.
+// The handler catches the error and renders one of these with 200.
+//
+// Never put an upstream URL, a filesystem path or a stack trace in one. The
+// user gets a generic message; the detail goes to the log.
+
+// ExampleLoading is what ships with the page, before the first fetch lands. Its
+// job is to hold the panel's final height so the card does not jump.
+templ ExampleLoading(lang string) {
+	<span class="htmx-indicator text-xs text-theme-400">{ T(lang, "widgets.loading") }</span>
+}
+
+// ExampleEmptyState — the upstream answered, with nothing to show. Different
+// from an error, and worth saying so.
+templ ExampleEmptyState(message string) {
+	<div class="text-xs text-theme-400 italic">{ message }</div>
+}
+
+// ExampleErrorState — the upstream failed. `.widget-error` also tints the
+// container border and any `.widget-value` inside it red.
+templ ExampleErrorState(lang string) {
+	<div class="widget-error text-xs text-red-500 flex items-center gap-1">
+		<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.5 0l-7.1 12.25A2 2 0 004.99 19z"></path>
+		</svg>
+		<span class="wrap-anywhere">{ T(lang, "widgets.error") }</span>
+	</div>
+}

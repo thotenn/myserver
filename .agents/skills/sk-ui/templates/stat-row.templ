@@ -1,0 +1,67 @@
+package templates
+
+// A row of numeric values is the single most fragile thing in a card, because
+// its available width is set by the CARD, not by the viewport: at 1024px a
+// 4-column group gives ~239px cards and a 2-column group ~500px ones. A media
+// query cannot tell those apart.
+//
+// Three things make it survive:
+//   1. `.service-stats` (input.css) folds 4 columns to 2x2 through a CONTAINER
+//      query on `.service-card`, whose threshold is in content-box pixels;
+//   2. `min-w-0` on each cell — a grid child defaults to min-width:auto and
+//      overlaps its neighbours instead of clipping;
+//   3. `truncate max-w-full` on the value as a last-resort guard. With the
+//      container query in place it is never reached; keep it anyway.
+//
+// Do NOT swap the truncate for `wrap-anywhere` here. Wrapping "658.9 MB" onto
+// two lines reads worse than folding the row, and the fold already prevents it.
+
+// ExampleStatRow renders four labelled values.
+templ ExampleStatRow(cpu, mem, rx, tx string) {
+	<div class="service-stats">
+		@ExampleStatCell("CPU", cpu)
+		@ExampleStatCell("MEM", mem)
+		@ExampleStatCell("RX", rx)
+		@ExampleStatCell("TX", tx)
+	</div>
+}
+
+templ ExampleStatCell(label, value string) {
+	<div class="flex flex-col items-center min-w-0">
+		<span class="text-theme-400">{ label }</span>
+		<span class="text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full">{ value }</span>
+	</div>
+}
+
+// ExampleStatPlaceholder holds the row's height while the first fetch is in
+// flight, so the card does not resize under the reader.
+templ ExampleStatPlaceholder() {
+	<div class="service-stats">
+		@ExampleStatCellEmpty("CPU")
+		@ExampleStatCellEmpty("MEM")
+		@ExampleStatCellEmpty("RX")
+		@ExampleStatCellEmpty("TX")
+	</div>
+}
+
+templ ExampleStatCellEmpty(label string) {
+	<div class="flex flex-col items-center min-w-0 text-theme-400">
+		<span class="truncate max-w-full">{ label }</span><span class="truncate max-w-full">—</span>
+	</div>
+}
+
+// ExampleUsageBar is the other numeric shape: a labelled progress bar, as used
+// by the resource widgets. `barWidth` returns a COMPLETE declaration
+// (`width: 42.0%;`) and clamps to [0,100] — an inline style is correct here
+// because the value is data, not a breakpoint.
+templ ExampleUsageBar(label string, percent float64, value string, barColor string) {
+	<div class="flex flex-col min-w-[80px]">
+		<div class="flex items-center justify-between gap-2">
+			<span class="text-[10px] uppercase text-theme-500 dark:text-theme-400 font-semibold">{ label }</span>
+			<span class="text-[10px] text-theme-700 dark:text-theme-200">{ value }</span>
+		</div>
+		<div class="usage-bar">
+			<div class={ "usage-bar-fill", barColor } style={ barWidth(percent) }></div>
+		</div>
+	</div>
+}

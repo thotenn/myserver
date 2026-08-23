@@ -1,0 +1,84 @@
+package templates
+
+import "github.com/thotenn/myserver/internal/config"
+
+// ExampleCard is the canonical card shape. Copy it and delete what you do not
+// need; the structure below is what keeps a card readable from 280px to 2560px.
+//
+// The card is clickable as a whole through the stretched-link pattern:
+//   - an absolutely positioned <a> covers the card at z-10;
+//   - all content sits in a `relative z-20 pointer-events-none` wrapper, so it
+//     paints above the link but lets clicks fall through to it.
+// ANYTHING inside that must be clickable on its own needs `pointer-events-auto`.
+templ ExampleCard(svc config.Service, groupName string, lang string) {
+	<div class="service-card relative group" data-service={ svc.Name } data-group={ groupName }>
+		if svc.Href != "" {
+			<a
+				href={ templ.SafeURL(svc.Href) }
+				target="_blank"
+				rel="noreferrer noopener"
+				aria-label={ svc.Name }
+				class="absolute inset-0 z-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+			></a>
+		}
+		<div class="relative z-20 pointer-events-none">
+			<div class="flex items-start gap-3">
+				if svc.Icon != "" {
+					// `flex-shrink-0` keeps the icon at size while the text column
+					// shrinks; `service-icon` is what app.js hooks to hide a broken
+					// image (the CSP forbids an inline onerror).
+					<img
+						src={ iconURL(svc.Icon) }
+						alt=""
+						class="w-10 h-10 rounded flex-shrink-0 object-contain service-icon"
+						loading="lazy"
+					/>
+				}
+				// `flex-1 min-w-0` is the pair that lets this column shrink at all:
+				// a flex child defaults to min-width:auto and refuses to go below
+				// its content, which is how text ends up outside the card.
+				<div class="flex-1 min-w-0">
+					<div class="flex items-center gap-2 min-w-0">
+						// `wrap-anywhere`, never `truncate`: the card grows in Y and
+						// no information is hidden. `break-words` is NOT a substitute
+						// — it does not lower min-content, so a spaceless name still
+						// overflows and scrolls the page.
+						<span class="font-medium text-sm text-theme-800 dark:text-theme-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 wrap-anywhere">
+							{ svc.Name }
+						</span>
+					</div>
+					if svc.Description != "" {
+						<p class="text-xs text-theme-500 dark:text-theme-400 wrap-anywhere">{ svc.Description }</p>
+					}
+					// Status line: wraps instead of clipping, and can shrink.
+					<div class="flex flex-wrap items-center gap-2 mt-1 text-[11px] min-w-0">
+						@ExampleStatusShell(svc, groupName)
+					</div>
+				</div>
+			</div>
+			// Anything separated from the head gets a rule and top margin. The
+			// border colour is a theme token so it follows the palette.
+			if svc.Container != "" {
+				<div class="mt-3 pt-2 border-t border-theme-100 dark:border-theme-700">
+					@DockerStatsPlaceholder()
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// ExampleStatusShell is the HTMX shell for a live badge. See guides/htmx.md:
+// the placeholder holds the height, the visibility guard keeps a background tab
+// free, and `min-w-0` lets the swapped fragment shrink.
+templ ExampleStatusShell(svc config.Service, groupName string) {
+	<div
+		hx-get={ pingURL(groupName, svc.Name) }
+		hx-trigger="load, every 60s [document.visibilityState === 'visible']"
+		hx-swap="innerHTML"
+		hx-target="this"
+		class="flex flex-wrap items-center gap-1 min-w-0"
+	>
+		<span class="status-dot status-unknown"></span>
+		<span class="text-theme-400">…</span>
+	</div>
+}

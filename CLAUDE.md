@@ -5,7 +5,10 @@ Self-hosted dashboard. Go rewrite of Homepage (Next.js/React) using
 Target: ~50–80 MiB RAM, single ~14 MB binary, ~30 MB Docker image.
 
 - **User documentation**: `README.md`
-- **Agent skill (add features without writing Go)**: `.agents/skills/add-widget/`
+- **Agent skill — configure a running instance, no Go**: `.agents/skills/add-widget/`
+- **Agent skill — change the UI code itself** (Templ, Tailwind, HTMX, the
+  handlers that render HTML): `.agents/skills/sk-ui/`. Read it before touching
+  anything under `internal/templates/` or `web/`.
 - **Context docs**: `docs/context/` (architecture, configuration schema, API
   reference, features, deploy, scripts, authentication, troubleshooting,
   glossaries)

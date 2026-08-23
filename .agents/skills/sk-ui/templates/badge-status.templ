@@ -1,0 +1,61 @@
+package templates
+
+// Status indicators. Two rules run through all of them:
+//
+//   - Semantic colour uses a LITERAL Tailwind colour (green/red/blue/yellow at
+//     400-700, all safelisted), not a theme token. "Running" must read as
+//     running whatever palette the operator picked.
+//   - Structural colour uses a theme token, so it follows the palette.
+
+// ExampleStatusLine is the standard badge: a dot plus a word, wrapping rather
+// than clipping when the card is narrow. `min-w-0` lets the row shrink at all;
+// `wrap-anywhere` guarantees even a single long token folds instead of running
+// past the card border.
+templ ExampleStatusLine(status string, detail string) {
+	<div class="flex flex-wrap items-center gap-1 min-w-0">
+		if status == "running" {
+			<span class="status-dot status-running"></span>
+			<span class="text-green-600 dark:text-green-400">running</span>
+		} else if status == "stopped" {
+			<span class="status-dot status-stopped"></span>
+			<span class="text-red-600 dark:text-red-400">stopped</span>
+		} else {
+			<span class="status-dot status-unknown"></span>
+			<span class="text-theme-400">{ status }</span>
+		}
+		if detail != "" {
+			<span class="text-theme-400 wrap-anywhere">({ detail })</span>
+		}
+	</div>
+}
+
+// ExamplePill is a compact label chip. Theme tokens: it is structural.
+templ ExamplePill(text string) {
+	<span class="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-theme-100 dark:bg-theme-700 text-theme-700 dark:text-theme-300">
+		{ text }
+	</span>
+}
+
+// ExampleLatency renders a monitoring result. Formatting goes through
+// `format.go` so every card reads the same: FormatLatency, FormatStatusCode,
+// FormatBytes, FormatPercent, FormatDuration, FormatTemp.
+templ ExampleLatency(alive bool, latency int64) {
+	if alive {
+		<span class="status-dot status-running"></span>
+		<span class="text-green-600 dark:text-green-400 wrap-anywhere">{ FormatLatency(latency) }</span>
+	} else {
+		<span class="status-dot status-stopped"></span>
+		<span class="text-red-600 dark:text-red-400 wrap-anywhere">offline</span>
+	}
+}
+
+// ExampleSpinner — an inline loading mark. `.htmx-indicator` is invisible until
+// an HTMX request is in flight; give it an id and point `hx-indicator` at it.
+templ ExampleSpinner(id string) {
+	<span id={ id } class="htmx-indicator flex items-center">
+		<svg class="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+			<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+			<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+		</svg>
+	</span>
+}

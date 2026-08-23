@@ -1,0 +1,73 @@
+// Template for a handler that serves an HTMX fragment.
+// Copy into internal/handlers/, drop the .txt, adjust names.
+//
+// FOUR edits make a live panel work end to end:
+//   1. a URL builder in internal/templates/urls.go   (escaping, always)
+//   2. the shell + fragment components                (see templates/*.templ)
+//   3. this handler                                   (content-negotiated)
+//   4. the route in setupRoutes                       (internal/handlers/api.go)
+
+package handlers
+
+import (
+	"net/http"
+
+	"go.uber.org/zap"
+
+	"github.com/thotenn/myserver/internal/templates"
+)
+
+// ExampleWidget handles GET /api/widgets/example.
+//
+// Content negotiation is the contract of every endpoint here: HTML to HTMX,
+// JSON to everyone else. Both branches are real — the JSON side is an API other
+// clients use, not an afterthought.
+func ExampleWidget(logger *zap.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Read query params through r.URL.Query(). They arrive from the URL
+		// builder, which escaped them; do not re-decode by hand.
+		label := r.URL.Query().Get("label")
+
+		value, err := fetchExampleValue(r.Context(), label)
+		if err != nil {
+			// A dead upstream degrades ONE panel. Render an error fragment with
+			// 200 so HTMX swaps it in; an HTTP error body would leave the panel
+			// showing its placeholder forever.
+			//
+			// Never leak the cause: no upstream URL, no filesystem path, no
+			// wrapped error string. The detail goes to the log.
+			logger.Warn("example widget upstream failed", zap.Error(err))
+			if isHTMXRequest(r) {
+				respondHTML(w, r, templates.ExampleErrorState(lang(r)))
+				return
+			}
+			writeUpstreamError(w, "upstream unavailable")
+			return
+		}
+
+		// respond() picks HTML or JSON off the HX-Request header.
+		respond(w, r,
+			templates.ExampleWidgetHTML(label, value),
+			map[string]any{"label": label, "value": value},
+		)
+	}
+}
+
+// Register it in setupRoutes, inside the /api group so it inherits CORS, host
+// validation and rate limiting. Anything that reaches an upstream or costs CPU
+// gets an explicit limit:
+//
+//	r.With(rateLimit(5, 8)).Get("/widgets/example", ExampleWidget(logger))
+//
+// Rate limits in use: 60/min default, 10/min on script execution, 1/min on
+// /api/hash and /api/reload, 5/s on ping and siteMonitor, 10/s on the proxy.
+//
+// The auth gate (internal/middleware/auth.go) works off an ALLOWLIST of public
+// paths, so a new route is protected by default. That is deliberate:
+// /api/services plus /api/widgets plus the proxy can rebuild the whole
+// dashboard from outside. Only add a path to the public list if it genuinely
+// must answer before login.
+//
+// Handlers MUST read config through the accessors on every request
+// (config.LoadServices(), config.CurrentHash()) and never capture a value in
+// the closure — that is what makes config hot-reload work.

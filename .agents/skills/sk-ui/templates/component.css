@@ -1,0 +1,72 @@
+/* Adding a component class to web/tailwind/input.css.
+ *
+ * WHEN a class instead of a utility string in the markup:
+ *   - the same list appears in three or more places;
+ *   - it needs a media query or a container query — a utility string cannot
+ *     express either;
+ *   - it is assembled at runtime, and would be purged (see below).
+ *
+ * WHERE: `@layer components` for component classes, `@layer utilities` for a
+ * single-property utility Tailwind v3 does not ship, `@layer base` for the
+ * theme token definitions.
+ *
+ * AFTER: `make tailwind`, and commit the regenerated web/static/css/main.css.
+ * Markup whose classes are not in the compiled stylesheet ships broken — and
+ * because the CSS is cached for a day, it stays broken until AssetVersion
+ * changes. Never edit main.css by hand.
+ *
+ * CAUTION: class names are a PUBLIC INTERFACE. `config/custom.css` is injected
+ * after the app's own stylesheets, so operators write rules against
+ * `.service-card` and friends. Renaming one breaks their config silently.
+ */
+
+@layer components {
+  /* A component class composed of utilities. @apply-ed classes are always
+     emitted, whether or not the scanner finds them in a template — which is one
+     more reason to move a runtime-variable class list in here. */
+  .example-panel {
+    @apply rounded-lg border border-theme-100 dark:border-theme-700 p-4;
+    @apply bg-white dark:bg-gray-800 shadow-md;
+  }
+
+  /* Responsive: this belongs in CSS, never in an inline style. An inline style
+     beats every media query — that is how the desktop column count once reached
+     phones. If the value is per-instance, pass it as a custom property from
+     Templ (`templ.SafeCSS`, since the sanitiser drops `--*` from plain strings)
+     and read it here with a var() fallback for the unset case. */
+  .example-grid {
+    @apply grid gap-3;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 640px) {
+    .example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (min-width: 1024px) {
+    .example-grid {
+      grid-template-columns: var(--example-cols, repeat(4, minmax(0, 1fr)));
+    }
+  }
+
+  /* Container query: for anything sized by its CARD rather than by the screen.
+     `.service-card` is already `container-type: inline-size`, so a descendant
+     can query it directly. The threshold is measured against the CONTENT box —
+     a 288px card with `p-3` queries as 264 — so subtract the padding when
+     picking the number. */
+  @container (max-width: 240px) {
+    .example-panel {
+      @apply p-2 text-[10px];
+    }
+  }
+}
+
+@layer utilities {
+  /* A single-property utility Tailwind v3 lacks. Declare the fallback first,
+     then the modern value: a browser that does not understand the second keeps
+     the first. */
+  .example-wrap {
+    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+}

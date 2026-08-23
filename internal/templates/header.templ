@@ -11,7 +11,14 @@ templ Header(data PageData) {
 					}
 				}
 			</div>
-			<div class="flex items-center gap-3 flex-shrink-0">
+			<!-- `flex-wrap` + `min-w-0` below `sm`: this cluster (datetime,
+			     greeting, weather, buttons) is ~550px wide with a long weather
+			     location, and while it could neither wrap nor shrink it set a
+			     floor on the document width. The page then scrolled sideways on
+			     a phone and every full-width element — the service cards above
+			     all — rendered narrower than the document it sat in.
+			     From `sm` up it goes back to one unshrinkable row, unchanged. -->
+			<div class="flex flex-wrap items-center gap-3 min-w-0 sm:flex-nowrap sm:flex-shrink-0">
 				for _, w := range data.Widgets {
 					if w.Type == "weather" || w.Type == "openmeteo" || w.Type == "openweathermap" {
 						@WeatherWidget(w.Options)

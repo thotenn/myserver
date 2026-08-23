@@ -2,36 +2,30 @@ package templates
 
 import "github.com/thotenn/myserver/internal/config"
 
+// ServiceGroup renders one group of services as a responsive grid.
+//
+// The configured column count travels to the stylesheet as the inline
+// `--service-cols` custom property, never as an inline `grid-template-columns`:
+// an inline style wins over every media query, which is how the desktop column
+// count used to reach phones and squeeze the card text out of the card.
+// `.service-grid` in `web/tailwind/input.css` applies the property from the
+// `lg` breakpoint up and caps the count below it.
 templ ServiceGroup(group config.ServiceGroup, layout *config.LayoutGroup, lang string, scriptsEnabled bool) {
 	<section class="mb-6" data-group={ group.Name }>
 		<h2 class="text-sm font-semibold uppercase tracking-wider text-theme-600 dark:text-theme-400 mb-3">
 			{ group.Name }
 		</h2>
-		if layout != nil && layout.Columns > 0 {
-			<div class="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" style={ gridColumns(layout.Columns) }>
-				for _, svc := range group.Services {
-					if svc.Type == "script" && svc.Script != "" {
-						if scriptsEnabled {
-							@ScriptCard(svc, group.Name, lang)
-						}
-					} else {
-						@ServiceCard(svc, group.Name, lang)
+		<div class="service-grid" style={ gridColumns(layoutColumns(layout)) }>
+			for _, svc := range group.Services {
+				if svc.Type == "script" && svc.Script != "" {
+					if scriptsEnabled {
+						@ScriptCard(svc, group.Name, lang)
 					}
+				} else {
+					@ServiceCard(svc, group.Name, lang)
 				}
-			</div>
-		} else {
-			<div class="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-				for _, svc := range group.Services {
-					if svc.Type == "script" && svc.Script != "" {
-						if scriptsEnabled {
-							@ScriptCard(svc, group.Name, lang)
-						}
-					} else {
-						@ServiceCard(svc, group.Name, lang)
-					}
-				}
-			</div>
-		}
+			}
+		</div>
 	</section>
 }
 

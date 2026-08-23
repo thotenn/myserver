@@ -101,14 +101,14 @@ func PingHTML(alive bool, latency int64) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if alive {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"status-dot status-running\"></span> <span class=\"text-green-600 dark:text-green-400\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"status-dot status-running\"></span> <span class=\"text-green-600 dark:text-green-400 truncate\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(FormatLatency(latency))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 22, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 22, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -119,7 +119,7 @@ func PingHTML(alive bool, latency int64) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<span class=\"status-dot status-stopped\"></span> <span class=\"text-red-600 dark:text-red-400\">offline</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<span class=\"status-dot status-stopped\"></span> <span class=\"text-red-600 dark:text-red-400 truncate\">offline</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -151,7 +151,7 @@ func SiteMonitorHTML(status int, latency int64) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if status >= 200 && status < 400 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<span class=\"status-dot status-running\"></span> <span class=\"text-green-600 dark:text-green-400\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<span class=\"status-dot status-running\"></span> <span class=\"text-green-600 dark:text-green-400 truncate\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -283,53 +283,53 @@ func DockerStatsHTML(cpu float64, memUsed, memLimit uint64, rxBytes, txBytes flo
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"grid grid-cols-4 gap-1 text-[10px]\"><div class=\"flex flex-col items-center\"><span class=\"text-theme-400\">CPU</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"service-stats\"><div class=\"flex flex-col items-center min-w-0\"><span class=\"text-theme-400\">CPU</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(FormatPercent(cpu))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 58, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 58, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span></div><div class=\"flex flex-col items-center\"><span class=\"text-theme-400\">MEM</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span></div><div class=\"flex flex-col items-center min-w-0\"><span class=\"text-theme-400\">MEM</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(FormatBytes(float64(memUsed)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 62, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 62, Col: 117}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</span></div><div class=\"flex flex-col items-center\"><span class=\"text-theme-400\">RX</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</span></div><div class=\"flex flex-col items-center min-w-0\"><span class=\"text-theme-400\">RX</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(FormatBytes(rxBytes))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 66, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 66, Col: 108}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</span></div><div class=\"flex flex-col items-center\"><span class=\"text-theme-400\">TX</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</span></div><div class=\"flex flex-col items-center min-w-0\"><span class=\"text-theme-400\">TX</span> <span class=\"text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(FormatBytes(txBytes))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 70, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 70, Col: 108}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -466,6 +466,12 @@ func DynamicListHTML(items []DynamicListItem) templ.Component {
 	})
 }
 
+// DockerStatusHTML renders the container status line of a card.
+//
+// `min-w-0` on the row plus `truncate` on the health parenthetical is what
+// keeps this line inside the card when the card is narrow: the status word
+// stays legible and "(healthy)" is what gets clipped, rather than the whole
+// line running past the card border.
 func DockerStatusHTML(status, health string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -487,7 +493,7 @@ func DockerStatusHTML(status, health string) templ.Component {
 			templ_7745c5c3_Var24 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"flex items-center gap-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"flex items-center gap-1 min-w-0\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -504,7 +510,7 @@ func DockerStatusHTML(status, health string) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 114, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 120, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -527,7 +533,7 @@ func DockerStatusHTML(status, health string) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 120, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 126, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -539,14 +545,14 @@ func DockerStatusHTML(status, health string) templ.Component {
 			}
 		}
 		if health != "" && health != "none" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<span class=\"text-theme-400\">(")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<span class=\"text-theme-400 truncate\">(")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(health)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 123, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/widget.templ`, Line: 129, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {

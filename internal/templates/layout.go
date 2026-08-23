@@ -37,3 +37,13 @@ func showSearchBar(data PageData) bool {
 	}
 	return data.Settings != nil && data.Settings.QuickLaunch != nil
 }
+
+// layoutColumns returns the configured column count for a group, or 0 when
+// the group has no layout entry — in which case the stylesheet's own default
+// applies.
+func layoutColumns(layout *config.LayoutGroup) int {
+	if layout == nil || layout.Columns <= 0 {
+		return 0
+	}
+	return layout.Columns
+}

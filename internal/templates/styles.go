@@ -9,14 +9,25 @@ import (
 	"github.com/thotenn/myserver/internal/config"
 )
 
-// gridColumns returns a full CSS `grid-template-columns: ...;` declaration
-// based on the configured column count. The style attribute in Templ expects
-// a complete declaration (property: value), not a bare value.
-func gridColumns(columns int) string {
+// gridColumns carries the configured column count of a service group into
+// the stylesheet as the `--service-cols` custom property.
+//
+// It deliberately does NOT set `grid-template-columns` here. An inline style
+// beats every class and every media query, so declaring the grid this way
+// forced the desktop layout onto phones: four ~85px columns, in which the
+// card name, the status line and the CPU/MEM/RX/TX row all overflowed the
+// card. `.service-grid` reads the property back and applies it only from the
+// `lg` breakpoint up, capping the count below that.
+//
+// Returns an empty declaration for a non-positive count, which leaves the
+// stylesheet's own default in place.
+func gridColumns(columns int) templ.SafeCSS {
 	if columns <= 0 {
-		return "grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));"
+		return ""
 	}
-	return fmt.Sprintf("grid-template-columns: repeat(%d, minmax(0, 1fr));", columns)
+	// SafeCSS skips Templ's CSS sanitiser, which drops custom properties.
+	// The value is built from an int, so there is nothing to inject.
+	return templ.SafeCSS(fmt.Sprintf("--service-cols: repeat(%d, minmax(0, 1fr));", columns))
 }
 
 // barWidth returns a complete CSS declaration `width: N%;` used by the

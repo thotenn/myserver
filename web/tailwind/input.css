@@ -146,6 +146,67 @@
     @apply backdrop-blur-sm bg-white/80 dark:bg-gray-800/80;
   }
 
+  /* Service grid — where the responsive column count lives.
+     The count configured in `layout.<group>.columns` arrives from Templ as an
+     inline `--service-cols` custom property and is honoured only from `lg` up.
+     Below that it is capped: 1 column on phones, 2 from `sm`, 3 from `md`.
+
+     It used to arrive as an inline `grid-template-columns`, which beats every
+     class and every media query — so a phone got the desktop's four ~85px
+     columns and the card text (name, status line, the CPU/MEM/RX/TX row)
+     spilled out of the card. A custom property is the way to hand a value to
+     the stylesheet without also deciding where it applies. */
+  .service-grid {
+    @apply grid gap-3;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 640px) {
+    .service-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .service-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    /* The fallback is the layout a group with no `columns:` entry gets. */
+    .service-grid {
+      grid-template-columns: var(--service-cols, repeat(4, minmax(0, 1fr)));
+    }
+  }
+
+  /* Stats row (CPU / MEM / RX / TX).
+     Its available width is set by the CARD, not by the viewport: at 1024px a
+     4-column group gives ~239px cards and a 2-column group ~500px ones. A
+     media query cannot tell those two apart, so the breakpoint is a CONTAINER
+     query on the card itself. A quarter of the row needs ~56px to hold a value
+     like "1023.7 MB" at 10px; below that it gets ellipsised, so the row folds
+     to 2x2 instead. Wide cards keep the single 4-column row unchanged.
+
+     The 240px threshold is measured against the card's CONTENT box, which is
+     what a container query resolves against — a 288px card with `p-3` queries
+     as 264. A one-column phone stays at 4 columns; the 3-and-4-column groups
+     on a tablet or a 1024px screen, where cards land near 240px, fold. */
+  .service-card {
+    container-type: inline-size;
+  }
+
+  .service-stats {
+    @apply grid grid-cols-4 gap-1 text-[10px];
+  }
+
+  @container (max-width: 240px) {
+    .service-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: 0.375rem;
+    }
+  }
+
   /* Responsive columns */
   @media (max-width: 640px) {
     .service-card {

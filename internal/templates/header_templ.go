@@ -41,7 +41,7 @@ func Header(data PageData) templ.Component {
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"flex items-center gap-3 flex-shrink-0\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><!-- `flex-wrap` + `min-w-0` below `sm`: this cluster (datetime,\n\t\t\t     greeting, weather, buttons) is ~550px wide with a long weather\n\t\t\t     location, and while it could neither wrap nor shrink it set a\n\t\t\t     floor on the document width. The page then scrolled sideways on\n\t\t\t     a phone and every full-width element — the service cards above\n\t\t\t     all — rendered narrower than the document it sat in.\n\t\t\t     From `sm` up it goes back to one unshrinkable row, unchanged. --><div class=\"flex flex-wrap items-center gap-3 min-w-0 sm:flex-nowrap sm:flex-shrink-0\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -95,7 +95,7 @@ func Header(data PageData) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(data.Settings.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/header.templ`, Line: 37, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/header.templ`, Line: 44, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {

@@ -162,7 +162,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"flex items-center gap-2 mt-1 text-[11px]\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"flex items-center gap-2 mt-1 text-[11px] min-w-0\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -180,7 +180,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" hx-trigger=\"load, every 15s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" hx-trigger=\"load, every 15s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -198,7 +198,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -216,7 +216,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -293,7 +293,7 @@ func DockerStatsPlaceholder() templ.Component {
 			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"grid grid-cols-4 gap-1 text-[10px]\"><div class=\"flex flex-col items-center text-theme-400\"><span>CPU</span><span>—</span></div><div class=\"flex flex-col items-center text-theme-400\"><span>MEM</span><span>—</span></div><div class=\"flex flex-col items-center text-theme-400\"><span>RX</span><span>—</span></div><div class=\"flex flex-col items-center text-theme-400\"><span>TX</span><span>—</span></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"service-stats\"><div class=\"flex flex-col items-center min-w-0 text-theme-400\"><span class=\"truncate max-w-full\">CPU</span><span class=\"truncate max-w-full\">—</span></div><div class=\"flex flex-col items-center min-w-0 text-theme-400\"><span class=\"truncate max-w-full\">MEM</span><span class=\"truncate max-w-full\">—</span></div><div class=\"flex flex-col items-center min-w-0 text-theme-400\"><span class=\"truncate max-w-full\">RX</span><span class=\"truncate max-w-full\">—</span></div><div class=\"flex flex-col items-center min-w-0 text-theme-400\"><span class=\"truncate max-w-full\">TX</span><span class=\"truncate max-w-full\">—</span></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -41,13 +41,13 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 					if svc.Description != "" {
 						<p class="text-xs text-theme-500 dark:text-theme-400 truncate">{ svc.Description }</p>
 					}
-					<div class="flex items-center gap-2 mt-1 text-[11px]">
+					<div class="flex items-center gap-2 mt-1 text-[11px] min-w-0">
 						if svc.Container != "" && svc.Server != "" {
 							<div hx-get={ dockerStatusURL(svc.Container, svc.Server) }
 								hx-trigger="load, every 15s [document.visibilityState === 'visible']"
 								hx-swap="innerHTML"
 								hx-target="this"
-								class="flex items-center gap-1">
+								class="flex items-center gap-1 min-w-0">
 								<span class="status-dot status-unknown"></span>
 								<span class="text-theme-400">…</span>
 							</div>
@@ -56,7 +56,7 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 								hx-trigger="load, every 60s [document.visibilityState === 'visible']"
 								hx-swap="innerHTML"
 								hx-target="this"
-								class="flex items-center gap-1">
+								class="flex items-center gap-1 min-w-0">
 								<span class="status-dot status-unknown"></span>
 								<span class="text-theme-400">…</span>
 							</div>
@@ -65,7 +65,7 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 								hx-trigger="load, every 60s [document.visibilityState === 'visible']"
 								hx-swap="innerHTML"
 								hx-target="this"
-								class="flex items-center gap-1">
+								class="flex items-center gap-1 min-w-0">
 								<span class="status-dot status-unknown"></span>
 								<span class="text-theme-400">…</span>
 							</div>
@@ -94,18 +94,18 @@ templ ServiceCard(svc config.Service, groupName string, lang string) {
 // DockerStatsPlaceholder renders an empty stats row shown while the first
 // HTMX fetch is in flight. Keeps the card height stable.
 templ DockerStatsPlaceholder() {
-	<div class="grid grid-cols-4 gap-1 text-[10px]">
-		<div class="flex flex-col items-center text-theme-400">
-			<span>CPU</span><span>—</span>
+	<div class="service-stats">
+		<div class="flex flex-col items-center min-w-0 text-theme-400">
+			<span class="truncate max-w-full">CPU</span><span class="truncate max-w-full">—</span>
 		</div>
-		<div class="flex flex-col items-center text-theme-400">
-			<span>MEM</span><span>—</span>
+		<div class="flex flex-col items-center min-w-0 text-theme-400">
+			<span class="truncate max-w-full">MEM</span><span class="truncate max-w-full">—</span>
 		</div>
-		<div class="flex flex-col items-center text-theme-400">
-			<span>RX</span><span>—</span>
+		<div class="flex flex-col items-center min-w-0 text-theme-400">
+			<span class="truncate max-w-full">RX</span><span class="truncate max-w-full">—</span>
 		</div>
-		<div class="flex flex-col items-center text-theme-400">
-			<span>TX</span><span>—</span>
+		<div class="flex flex-col items-center min-w-0 text-theme-400">
+			<span class="truncate max-w-full">TX</span><span class="truncate max-w-full">—</span>
 		</div>
 	</div>
 }

@@ -62,8 +62,34 @@ make up | down | logs   # docker compose wrappers
   them from `web/static/js/app.js`.
 - **Dynamic attributes**: `href={ "/x?v=" + data.Hash }`, not
   `href="/x?v={ data.Hash }"` (the latter is emitted as a literal `{`).
-- **`style` for grid layouts**: the helper must return the complete declaration
-  (`grid-template-columns: repeat(4, 1fr);`), not just the value.
+- **`style` helpers must return a complete declaration** (`width: 42.0%;`), not
+  a bare value.
+- **Never put a responsive property in an inline `style`.** An inline style
+  beats every class and every media query, so a server-rendered
+  `grid-template-columns` handed phones the desktop column count and the card
+  text overflowed the card. Hand the value to the stylesheet as a custom
+  property instead — `gridColumns` emits `--service-cols` and `.service-grid`
+  in `web/tailwind/input.css` decides at which breakpoints it applies.
+  `TestServiceGroup_ColumnsTravelAsCustomProperty` fails if this comes back.
+- **Custom properties need `templ.SafeCSS`.** Templ's CSS sanitiser drops
+  unknown properties, `--*` among them, so a plain `string` return silently
+  loses the value. Only build such a string from data you control.
+- **A grid or flex item needs `min-w-0` to be allowed to shrink.** Its default
+  `min-width: auto` is why the CPU/MEM/RX/TX values overlapped each other
+  instead of clipping when the card got narrow.
+- **One element that cannot wrap or shrink breaks the whole page on a phone.**
+  The header's right cluster was `flex-shrink-0` with no `flex-wrap`, so it set
+  a floor on the document width; the page then scrolled sideways and every
+  `width: 100%` element rendered narrower than the document around it — which
+  looks like "the cards do not fill the screen", nowhere near the real cause.
+  `make shots` in the `opensource/` workspace names the offending element.
+- **Card-sized things need a container query, not a media query.** The stats row
+  fits four columns or two depending on the CARD width, and at 1024px a
+  4-column group gives ~239px cards while a 2-column group gives ~500px ones —
+  the viewport cannot tell them apart. `.service-card` is
+  `container-type: inline-size` and `.service-stats` queries it. Container
+  queries resolve against the **content box**, so the threshold excludes the
+  card padding.
 - **CSP is `script-src 'self' …`**: no inline `onclick`/`onsubmit`/`onerror`.
   Attach listeners in `app.js` via `addEventListener`.
 

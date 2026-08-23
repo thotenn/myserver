@@ -19,10 +19,10 @@ templ WidgetContainer(svc config.Service, groupName string, lang string) {
 templ PingHTML(alive bool, latency int64) {
 	if alive {
 		<span class="status-dot status-running"></span>
-		<span class="text-green-600 dark:text-green-400">{ FormatLatency(latency) }</span>
+		<span class="text-green-600 dark:text-green-400 truncate">{ FormatLatency(latency) }</span>
 	} else {
 		<span class="status-dot status-stopped"></span>
-		<span class="text-red-600 dark:text-red-400">offline</span>
+		<span class="text-red-600 dark:text-red-400 truncate">offline</span>
 	}
 }
 
@@ -30,7 +30,7 @@ templ PingHTML(alive bool, latency int64) {
 templ SiteMonitorHTML(status int, latency int64) {
 	if status >= 200 && status < 400 {
 		<span class="status-dot status-running"></span>
-		<span class="text-green-600 dark:text-green-400">
+		<span class="text-green-600 dark:text-green-400 truncate">
 			{ FormatStatusCode(status) } · { FormatLatency(latency) }
 		</span>
 	} else {
@@ -52,22 +52,22 @@ templ WidgetBlock(label, value string) {
 // same format as the Node.js Homepage docker stats widget. All values are
 // shown with a mini label and a human-readable value.
 templ DockerStatsHTML(cpu float64, memUsed, memLimit uint64, rxBytes, txBytes float64) {
-	<div class="grid grid-cols-4 gap-1 text-[10px]">
-		<div class="flex flex-col items-center">
+	<div class="service-stats">
+		<div class="flex flex-col items-center min-w-0">
 			<span class="text-theme-400">CPU</span>
-			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatPercent(cpu) }</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full">{ FormatPercent(cpu) }</span>
 		</div>
-		<div class="flex flex-col items-center">
+		<div class="flex flex-col items-center min-w-0">
 			<span class="text-theme-400">MEM</span>
-			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatBytes(float64(memUsed)) }</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full">{ FormatBytes(float64(memUsed)) }</span>
 		</div>
-		<div class="flex flex-col items-center">
+		<div class="flex flex-col items-center min-w-0">
 			<span class="text-theme-400">RX</span>
-			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatBytes(rxBytes) }</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full">{ FormatBytes(rxBytes) }</span>
 		</div>
-		<div class="flex flex-col items-center">
+		<div class="flex flex-col items-center min-w-0">
 			<span class="text-theme-400">TX</span>
-			<span class="text-theme-800 dark:text-theme-200 font-semibold">{ FormatBytes(txBytes) }</span>
+			<span class="text-theme-800 dark:text-theme-200 font-semibold truncate max-w-full">{ FormatBytes(txBytes) }</span>
 		</div>
 	</div>
 }
@@ -104,8 +104,14 @@ templ DynamicListHTML(items []DynamicListItem) {
 	}
 }
 
+// DockerStatusHTML renders the container status line of a card.
+//
+// `min-w-0` on the row plus `truncate` on the health parenthetical is what
+// keeps this line inside the card when the card is narrow: the status word
+// stays legible and "(healthy)" is what gets clipped, rather than the whole
+// line running past the card border.
 templ DockerStatusHTML(status, health string) {
-	<div class="flex items-center gap-1">
+	<div class="flex items-center gap-1 min-w-0">
 		if status == "running" {
 			<span class="status-dot status-running"></span>
 			<span class="text-green-600 dark:text-green-400">running</span>
@@ -120,7 +126,7 @@ templ DockerStatusHTML(status, health string) {
 			<span class="text-theme-400">{ status }</span>
 		}
 		if health != "" && health != "none" {
-			<span class="text-theme-400">({ health })</span>
+			<span class="text-theme-400 truncate">({ health })</span>
 		}
 	</div>
 }

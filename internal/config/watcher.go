@@ -160,7 +160,13 @@ func (w *Watcher) handle(event fsnotify.Event) {
 	}
 	dir := filepath.Dir(event.Name)
 
-	if dir == filepath.Join(set.Root().Dir, DashboardsSubdir) && !isConfigFile(event.Name) {
+	// Anything appearing or disappearing directly inside dashboards/ can change
+	// the set of dashboards, so it is rescanned without looking at the name.
+	// The extension is not a usable signal here: a dashboard may legitimately
+	// be called "reports.js", and reading that as a config file would skip the
+	// rescan that puts it into service. A rescan is idempotent, so the cost of
+	// running one for a stray file in that directory is nothing.
+	if dir == filepath.Join(set.Root().Dir, DashboardsSubdir) {
 		w.rescan(event)
 		return
 	}

@@ -73,6 +73,20 @@
   .dark\:placeholder-theme-500:is(.dark *)::placeholder { color: rgb(var(--color-500)); }
 }
 
+@layer utilities {
+  /* Tailwind v3 has no utility for `overflow-wrap: anywhere`, and `break-words`
+     (`overflow-wrap: break-word`) is not enough on its own: it breaks the line
+     but does NOT lower the element's intrinsic min-content width, so a service
+     name or description with no spaces — a URL, a long identifier — still spills
+     out of the card and makes the whole document scroll sideways. `anywhere`
+     also shrinks min-content, which is what actually keeps the text inside.
+     `break-word` stays as the fallback for anything that lacks `anywhere`. */
+  .wrap-anywhere {
+    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+}
+
 @layer components {
   .service-card {
     @apply bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 p-4 border border-gray-100 dark:border-gray-700;

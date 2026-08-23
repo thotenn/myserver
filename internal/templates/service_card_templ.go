@@ -126,7 +126,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"flex-1 min-w-0\"><div class=\"flex items-center gap-2\"><span class=\"font-medium text-sm text-theme-800 dark:text-theme-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"flex-1 min-w-0\"><div class=\"flex items-center gap-2 min-w-0\"><span class=\"font-medium text-sm text-theme-800 dark:text-theme-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 wrap-anywhere\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -144,14 +144,14 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			return templ_7745c5c3_Err
 		}
 		if svc.Description != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p class=\"text-xs text-theme-500 dark:text-theme-400 truncate\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p class=\"text-xs text-theme-500 dark:text-theme-400 wrap-anywhere\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(svc.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/service_card.templ`, Line: 42, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/service_card.templ`, Line: 42, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -162,7 +162,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"flex items-center gap-2 mt-1 text-[11px] min-w-0\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"flex flex-wrap items-center gap-2 mt-1 text-[11px] min-w-0\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -180,7 +180,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" hx-trigger=\"load, every 15s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" hx-trigger=\"load, every 15s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex flex-wrap items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -198,7 +198,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex flex-wrap items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -216,7 +216,7 @@ func ServiceCard(svc config.Service, groupName string, lang string) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-trigger=\"load, every 60s [document.visibilityState === 'visible']\" hx-swap=\"innerHTML\" hx-target=\"this\" class=\"flex flex-wrap items-center gap-1 min-w-0\"><span class=\"status-dot status-unknown\"></span> <span class=\"text-theme-400\">…</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

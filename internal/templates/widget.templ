@@ -19,10 +19,10 @@ templ WidgetContainer(svc config.Service, groupName string, lang string) {
 templ PingHTML(alive bool, latency int64) {
 	if alive {
 		<span class="status-dot status-running"></span>
-		<span class="text-green-600 dark:text-green-400 truncate">{ FormatLatency(latency) }</span>
+		<span class="text-green-600 dark:text-green-400 wrap-anywhere">{ FormatLatency(latency) }</span>
 	} else {
 		<span class="status-dot status-stopped"></span>
-		<span class="text-red-600 dark:text-red-400 truncate">offline</span>
+		<span class="text-red-600 dark:text-red-400 wrap-anywhere">offline</span>
 	}
 }
 
@@ -30,7 +30,7 @@ templ PingHTML(alive bool, latency int64) {
 templ SiteMonitorHTML(status int, latency int64) {
 	if status >= 200 && status < 400 {
 		<span class="status-dot status-running"></span>
-		<span class="text-green-600 dark:text-green-400 truncate">
+		<span class="text-green-600 dark:text-green-400 wrap-anywhere">
 			{ FormatStatusCode(status) } · { FormatLatency(latency) }
 		</span>
 	} else {
@@ -106,12 +106,12 @@ templ DynamicListHTML(items []DynamicListItem) {
 
 // DockerStatusHTML renders the container status line of a card.
 //
-// `min-w-0` on the row plus `truncate` on the health parenthetical is what
-// keeps this line inside the card when the card is narrow: the status word
-// stays legible and "(healthy)" is what gets clipped, rather than the whole
-// line running past the card border.
+// The row wraps rather than clips: on a narrow card "(healthy)" moves to its
+// own line instead of being cut off. `min-w-0` lets the row shrink below its
+// content width in the first place, and `wrap-anywhere` guarantees that even a
+// single long token folds rather than running past the card border.
 templ DockerStatusHTML(status, health string) {
-	<div class="flex items-center gap-1 min-w-0">
+	<div class="flex flex-wrap items-center gap-1 min-w-0">
 		if status == "running" {
 			<span class="status-dot status-running"></span>
 			<span class="text-green-600 dark:text-green-400">running</span>
@@ -126,7 +126,7 @@ templ DockerStatusHTML(status, health string) {
 			<span class="text-theme-400">{ status }</span>
 		}
 		if health != "" && health != "none" {
-			<span class="text-theme-400 truncate">({ health })</span>
+			<span class="text-theme-400 wrap-anywhere">({ health })</span>
 		}
 	</div>
 }

@@ -83,6 +83,15 @@ make up | down | logs   # docker compose wrappers
   `width: 100%` element rendered narrower than the document around it — which
   looks like "the cards do not fill the screen", nowhere near the real cause.
   `make shots` in the `opensource/` workspace names the offending element.
+- **Card text wraps, it does not truncate.** Name, description and the status
+  line use `wrap-anywhere` and the card grows vertically; an ellipsis hides
+  information the user came for. `break-words` alone is NOT enough: it breaks
+  the line but leaves the element's intrinsic min-content width at the full
+  token, so a spaceless name or URL still spills out of the card and scrolls
+  the page. The `.wrap-anywhere` utility in `input.css` exists because
+  Tailwind v3 has no `overflow-wrap: anywhere`. The numeric stats row is the
+  exception — it keeps `truncate` as a last-resort guard that the container
+  query above means it never reaches.
 - **Card-sized things need a container query, not a media query.** The stats row
   fits four columns or two depending on the CARD width, and at 1024px a
   4-column group gives ~239px cards while a 2-column group gives ~500px ones —

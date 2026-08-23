@@ -6,14 +6,17 @@ import (
 
 // PageData holds all data needed to render the main dashboard page.
 type PageData struct {
-	Settings       *config.Settings
-	Services       []config.ServiceGroup
-	Bookmarks      []config.BookmarkGroup
-	Widgets        []config.InfoWidget
-	Theme          string
-	Color          string
-	Language       string
-	Hash           string
+	Settings  *config.Settings
+	Services  []config.ServiceGroup
+	Bookmarks []config.BookmarkGroup
+	Widgets   []config.InfoWidget
+	Theme     string
+	Color     string
+	Language  string
+	Hash      string
+	// AssetVersion is the `?v=` of the static CSS/JS links: a content hash of
+	// the build output, NOT of the config. See handlers.AssetVersion.
+	AssetVersion   string
 	ScriptsEnabled bool
 	// AuthEmail is the signed-in address, empty when authentication is off.
 	AuthEmail string

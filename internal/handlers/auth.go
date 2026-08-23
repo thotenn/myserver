@@ -309,11 +309,11 @@ func errorKey(param string) string {
 // title and language from settings when they are readable.
 func authPageData(cfg *config.AuthConfig) templates.AuthPageData {
 	data := templates.AuthPageData{
-		Title:    "MyServer",
-		Language: "en",
-		Theme:    "dark",
-		Color:    "slate",
-		Hash:     config.CurrentHash(),
+		Title:        "MyServer",
+		Language:     "en",
+		Theme:        "dark",
+		Color:        "slate",
+		AssetVersion: AssetVersion(),
 	}
 	if settings, err := config.LoadSettings(); err == nil && settings != nil {
 		if settings.Title != "" {

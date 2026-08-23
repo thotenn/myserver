@@ -34,9 +34,9 @@ func Scripts(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("/static/js/theme.js?v=" + data.Hash)
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("/static/js/theme.js?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 4, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 4, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -47,9 +47,9 @@ func Scripts(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("/static/js/app.js?v=" + data.Hash)
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("/static/js/app.js?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 5, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/scripts.templ`, Line: 5, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

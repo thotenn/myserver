@@ -54,6 +54,7 @@ func Dashboard() http.HandlerFunc {
 			Color:          color,
 			Language:       settings.Language,
 			Hash:           config.CurrentHash(),
+			AssetVersion:   AssetVersion(),
 			ScriptsEnabled: config.ScriptsEnabled(),
 			AuthEmail:      mw.SessionEmail(r.Context()),
 		}

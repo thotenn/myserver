@@ -8,7 +8,10 @@ type AuthPageData struct {
 	Language string
 	Theme    string
 	Color    string
-	Hash     string
+	// AssetVersion is the `?v=` of the stylesheet links — a hash of the build
+	// output, not of the config. The login page has no config-hash meta tag
+	// and no reload poll, so this is the field's only purpose.
+	AssetVersion string
 	// StartURL begins the provider login, carrying the validated `next`.
 	StartURL string
 	// Email is the address that was rejected, shown on the denied page.
@@ -31,8 +34,8 @@ templ authShell(data AuthPageData) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<meta name="robots" content="noindex, nofollow"/>
 			<title>{ data.Title }</title>
-			<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.Hash }/>
-			<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.Hash }/>
+			<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.AssetVersion }/>
+			<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.AssetVersion }/>
 		</head>
 		<body class="min-h-screen bg-theme-50 dark:bg-theme-900 text-theme-900 dark:text-theme-100">
 			<main class="min-h-screen flex items-center justify-center px-4">

@@ -65,14 +65,14 @@ func Head(data PageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</title><!-- DNS prefetch and preconnect for external CDNs --><link rel=\"dns-prefetch\" href=\"https://cdn.jsdelivr.net\"><link rel=\"preconnect\" href=\"https://cdn.jsdelivr.net\" crossorigin><link rel=\"dns-prefetch\" href=\"https://cdn.simpleicons.org\"><link rel=\"preconnect\" href=\"https://cdn.simpleicons.org\" crossorigin><link rel=\"dns-prefetch\" href=\"https://unpkg.com\"><link rel=\"preconnect\" href=\"https://unpkg.com\" crossorigin><!-- Preload critical static assets --><link rel=\"preload\" as=\"style\" href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</title><!-- DNS prefetch and preconnect for external CDNs --><link rel=\"dns-prefetch\" href=\"https://cdn.jsdelivr.net\"><link rel=\"preconnect\" href=\"https://cdn.jsdelivr.net\" crossorigin><link rel=\"dns-prefetch\" href=\"https://cdn.simpleicons.org\"><link rel=\"preconnect\" href=\"https://cdn.simpleicons.org\" crossorigin><link rel=\"dns-prefetch\" href=\"https://unpkg.com\"><link rel=\"preconnect\" href=\"https://unpkg.com\" crossorigin><!-- Preload critical static assets. The `?v=` is a hash of the ASSETS,\n\t\t     not of the config: config.CurrentHash() does not change when a\n\t\t     deploy ships a new stylesheet, and browsers then keep the cached\n\t\t     one for a day against the new markup. --><link rel=\"preload\" as=\"style\" href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 templ.SafeURL
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.Hash)
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 19, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 22, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -83,9 +83,9 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 templ.SafeURL
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs("/static/js/app.js?v=" + data.Hash)
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs("/static/js/app.js?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 20, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 23, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -96,9 +96,9 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 templ.SafeURL
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.Hash)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 21, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 24, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -109,9 +109,9 @@ func Head(data PageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 templ.SafeURL
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/themes.css?v=" + data.Hash)
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/themes.css?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 22, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 25, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -132,7 +132,7 @@ func Head(data PageData) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(data.Hash)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 31, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/head.templ`, Line: 34, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {

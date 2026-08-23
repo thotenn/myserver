@@ -15,11 +15,14 @@ templ Head(data PageData) {
 		<link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin/>
 		<link rel="dns-prefetch" href="https://unpkg.com"/>
 		<link rel="preconnect" href="https://unpkg.com" crossorigin/>
-		<!-- Preload critical static assets -->
-		<link rel="preload" as="style" href={ "/static/css/main.css?v=" + data.Hash }/>
-		<link rel="preload" as="script" href={ "/static/js/app.js?v=" + data.Hash }/>
-		<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.Hash }/>
-		<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.Hash }/>
+		<!-- Preload critical static assets. The `?v=` is a hash of the ASSETS,
+		     not of the config: config.CurrentHash() does not change when a
+		     deploy ships a new stylesheet, and browsers then keep the cached
+		     one for a day against the new markup. -->
+		<link rel="preload" as="style" href={ "/static/css/main.css?v=" + data.AssetVersion }/>
+		<link rel="preload" as="script" href={ "/static/js/app.js?v=" + data.AssetVersion }/>
+		<link rel="stylesheet" href={ "/static/css/main.css?v=" + data.AssetVersion }/>
+		<link rel="stylesheet" href={ "/static/css/themes.css?v=" + data.AssetVersion }/>
 		<link rel="stylesheet" href="/api/config/custom.css"/>
 		<!-- Early theme init to avoid FOUC -->
 		@themeInit()

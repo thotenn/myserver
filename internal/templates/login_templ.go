@@ -16,7 +16,10 @@ type AuthPageData struct {
 	Language string
 	Theme    string
 	Color    string
-	Hash     string
+	// AssetVersion is the `?v=` of the stylesheet links — a hash of the build
+	// output, not of the config. The login page has no config-hash meta tag
+	// and no reload poll, so this is the field's only purpose.
+	AssetVersion string
 	// StartURL begins the provider login, carrying the validated `next`.
 	StartURL string
 	// Email is the address that was rejected, shown on the denied page.
@@ -68,7 +71,7 @@ func authShell(data AuthPageData) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(data.Language)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 28, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 31, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -94,7 +97,7 @@ func authShell(data AuthPageData) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(data.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 33, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 36, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -105,9 +108,9 @@ func authShell(data AuthPageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 templ.SafeURL
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.Hash)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/main.css?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 34, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 37, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -118,9 +121,9 @@ func authShell(data AuthPageData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 templ.SafeURL
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/themes.css?v=" + data.Hash)
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs("/static/css/themes.css?v=" + data.AssetVersion)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 35, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 38, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -183,7 +186,7 @@ func LoginPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(data.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 52, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 55, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -196,7 +199,7 @@ func LoginPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.signInPrompt"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 55, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 58, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -214,7 +217,7 @@ func LoginPage(data AuthPageData) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, data.Error))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 59, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 62, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -232,7 +235,7 @@ func LoginPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var13 templ.SafeURL
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(data.StartURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 63, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 66, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -249,7 +252,7 @@ func LoginPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.signInWithGoogle"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 67, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 70, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -310,7 +313,7 @@ func DeniedPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.deniedTitle"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 78, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 81, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -323,7 +326,7 @@ func DeniedPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.deniedBody"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 81, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 84, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -341,7 +344,7 @@ func DeniedPage(data AuthPageData) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(data.Email)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 85, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 88, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -359,7 +362,7 @@ func DeniedPage(data AuthPageData) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.tryAnotherAccount"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 92, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 95, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -443,7 +446,7 @@ func SignOutButton(data PageData) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(data.AuthEmail)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 118, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 121, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -456,7 +459,7 @@ func SignOutButton(data PageData) templ.Component {
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(T(data.Language, "auth.signOut"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 119, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/templates/login.templ`, Line: 122, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {

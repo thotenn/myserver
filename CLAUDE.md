@@ -112,6 +112,23 @@ make up | down | logs   # docker compose wrappers
 - Icons resolve via `homarr-labs/dashboard-icons` (jsdelivr), MDI SVG
   (`mdi-` and `mdi:`), Simple Icons (`si-` and `si:`), or absolute URL.
 
+### Static assets & cache busting
+
+- **The `?v=` on `/static/*` is `handlers.AssetVersion()`, a content hash of the
+  BUILD OUTPUT — never `config.CurrentHash()`.** The config hash is derived from
+  the user's YAML files alone, so a deploy that shipped a new `main.css` without
+  a config change produced the identical URL and browsers kept the cached
+  stylesheet (`max-age=86400`) against freshly rendered markup. New class names
+  met an old file; the page looks structurally broken, which sends you hunting
+  through CSS instead of through caching. Covered by
+  `TestHashStaticAssets_ChangesWithContent`.
+- **`config.CurrentHash()` still owns the `config-hash` meta tag and the
+  `/api/hash` reload poll**, and must keep tracking the config and only the
+  config. The two hashes answer different questions; do not merge them.
+- Consequence for any markup change: a new custom class in `input.css` only
+  works if the CSS is recompiled AND the browser refetches it. Both are now
+  automatic; a stale view in dev is a hard reload away.
+
 ### Config & hot-reload
 
 - Handlers MUST read `config.CurrentHash()` (atomic.Value) per request. Never
